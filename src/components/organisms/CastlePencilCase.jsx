@@ -40,7 +40,12 @@ function makeCylinderCupBody(outerR, innerR, height, bottomThick) {
   outerTube.translate(0, hh, 0);
   const innerTube = new THREE.CylinderGeometry(innerR, innerR, innerH, SEG, 1, true);
   innerTube.translate(0, innerH / 2 + bottomThick, 0);
-  const bottom = new THREE.RingGeometry(innerR, outerR, SEG);
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, innerR, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+  const bottom = new THREE.ExtrudeGeometry(shape, { depth: bottomThick, bevelEnabled: false });
   bottom.rotateX(-Math.PI / 2);
   return mergeGeoms([outerTube, innerTube, bottom]);
 }
