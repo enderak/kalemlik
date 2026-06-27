@@ -27,7 +27,7 @@ function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH) {
   for (let i = 0; i < numCren; i++) {
     const a = i * gapA;
     const g = new THREE.BoxGeometry(crenW, crenH, wallT);
-    g.translate(0, hh + crenH / 2, midR);
+    g.translate(0, height + crenH / 2, midR);
     const q = new THREE.Quaternion().setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
       new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
