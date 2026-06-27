@@ -409,7 +409,7 @@ const CastlePencilCase = ({
 }) => {
   const isCylinder = shape === 'cylinder';
   const brickTex = useMemo(() => (showBrickTexture ? createBrickTexture() : null), [showBrickTexture]);
-  const texProps = brickTex ? { map: brickTex } : {};
+  const texProps = useMemo(() => ({ map: brickTex }), [brickTex]);
 
   /* --- body --- */
   const bodyGeom = useMemo(() => {
