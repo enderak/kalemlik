@@ -584,7 +584,7 @@ const CastlePencilCase = ({
       side: THREE.DoubleSide,
       ...texProps,
     });
-  }, [materialColor, brickTexture]);
+  }, [materialColor, brickTex]);
 
   return (
     <group ref={groupRef} name="CastlePencilCase">
