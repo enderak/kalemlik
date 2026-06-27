@@ -15,6 +15,7 @@ dist-ssr
 # AI Pipeline backend
 server/.env
 server/tmp/
+tmp/
 server/cache/
 server/node_modules/
 
