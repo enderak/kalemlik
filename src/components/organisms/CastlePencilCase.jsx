@@ -59,23 +59,35 @@ function makeCylinderBaseGeom(outerR, baseExt, baseH) {
 }
 
 function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH, crenWRatio) {
-  const midR = (outerR + innerR) / 2;
-  const wallT = outerR - innerR;
   const gapA = (Math.PI * 2) / numCren;
-  const w = midR * gapA * THREE.MathUtils.clamp(crenWRatio, 0.1, 0.95);
-  const boxes = [];
+  const crenA = gapA * THREE.MathUtils.clamp(crenWRatio, 0.1, 0.95);
+  const arcSegs = 6;
+  const geoms = [];
   for (let i = 0; i < numCren; i++) {
     const a = i * gapA;
-    const g = new THREE.BoxGeometry(w, crenH, wallT);
-    g.translate(0, height + crenH / 2, midR);
-    const q = new THREE.Quaternion().setFromUnitVectors(
-      new THREE.Vector3(0, 0, 1),
-      new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
-    );
-    g.applyQuaternion(q);
-    boxes.push(g);
+    const sA = a - crenA / 2 - Math.PI / 2;
+    const eA = a + crenA / 2 - Math.PI / 2;
+    const shape = new THREE.Shape();
+    for (let j = 0; j <= arcSegs; j++) {
+      const t = sA + (eA - sA) * (j / arcSegs);
+      const x = outerR * Math.cos(t);
+      const y = outerR * Math.sin(t);
+      if (j === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+    }
+    for (let j = arcSegs; j >= 0; j--) {
+      const t = sA + (eA - sA) * (j / arcSegs);
+      const x = innerR * Math.cos(t);
+      const y = innerR * Math.sin(t);
+      shape.lineTo(x, y);
+    }
+    shape.closePath();
+    const g = new THREE.ExtrudeGeometry(shape, { depth: crenH, bevelEnabled: false });
+    g.translate(0, 0, height);
+    g.rotateX(-Math.PI / 2);
+    g.computeVertexNormals();
+    geoms.push(g);
   }
-  return boxes;
+  return geoms;
 }
 
 /* ============ KARE GEOMETRY ============ */
