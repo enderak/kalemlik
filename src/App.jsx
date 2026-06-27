@@ -186,7 +186,7 @@ const App = () => {
               <>
                 <Slider label={t('door_width')} value={doorWidth} onChange={setDoorWidth} min={15} max={40} />
                 <Slider label={t('door_height')} value={doorHeight} onChange={setDoorHeight} min={30} max={80} />
-                <Slider label={t('door_recess')} value={doorRecess} onChange={setDoorRecess} min={0} max={10} step={0.5} />
+                <Slider label={t('door_recess')} value={doorRecess} onChange={setDoorRecess} min={-10} max={10} step={0.5} />
               </>
             )}
           </div>
@@ -230,7 +230,7 @@ const App = () => {
                 <Slider label={t('num_windows')} value={numWindows} onChange={setNumWindows} min={1} max={12} step={1} />
                 <Slider label={t('window_width')} value={windowWidth} onChange={setWindowWidth} min={8} max={30} />
                 <Slider label={t('window_height')} value={windowHeight} onChange={setWindowHeight} min={12} max={40} />
-                <Slider label={t('window_recess')} value={windowRecess} onChange={setWindowRecess} min={0} max={10} step={0.5} />
+                <Slider label={t('window_recess')} value={windowRecess} onChange={setWindowRecess} min={-10} max={10} step={0.5} />
                 <label className="flex items-center gap-3 mb-3 cursor-pointer">
                   <div className="relative">
                     <input type="checkbox" checked={windowArched} onChange={(e) => setWindowArched(e.target.checked)} className="sr-only peer" />
@@ -304,8 +304,8 @@ const App = () => {
             {t('export_ready')}
           </div>
 
-          <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 4, 14], fov: 40 }}>
-            <PerspectiveCamera makeDefault position={[0, 4, 14]} fov={40} />
+          <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 4, 22], fov: 35 }}>
+            <PerspectiveCamera makeDefault position={[0, 4, 22]} fov={35} />
             <OrbitControls
               makeDefault
               minPolarAngle={0.1}
