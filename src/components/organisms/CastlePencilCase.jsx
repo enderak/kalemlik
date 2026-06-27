@@ -440,14 +440,14 @@ const CastlePencilCase = ({
       const geoms = makeCylinderCrenGeoms(outerR, innerR, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
         <mesh key={`cren-c-${i}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
     } else {
       const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
         <mesh key={`cren-s-${i}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
     }
@@ -459,7 +459,7 @@ const CastlePencilCase = ({
     const geoms = makeSquareTowerGeoms(outerSize, height, towerRadius, towerHeight);
     return geoms.map((g, i) => (
       <mesh key={`tower-${i}`} geometry={g} name={`Tower_${i}`} receiveShadow castShadow>
-        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} {...texProps} />
+        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
       </mesh>
     ));
   }, [isCylinder, hasTowers, outerSize, height, towerRadius, towerHeight, materialColor, texProps]);
@@ -473,14 +473,14 @@ const CastlePencilCase = ({
       const geoms = makeCylinderBrickGeoms(outerR, height, brickDepth, bw, bh, gap);
       return geoms.map((g, i) => (
         <mesh key={`brick-c-${i}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
     } else {
       const geoms = makeSquareBrickGeoms(outerSize, wallThickness, height, brickDepth, bw, bh, gap);
       return geoms.map((g, i) => (
         <mesh key={`brick-s-${i}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
     }
@@ -502,7 +502,7 @@ const CastlePencilCase = ({
           <meshStandardMaterial color={doorColor} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>
         <mesh geometry={frameGeom} name="CastleDoorFrame" receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       </group>
     );
@@ -527,7 +527,7 @@ const CastlePencilCase = ({
           <meshStandardMaterial color={windowColor} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>,
         <mesh key={`wf-${key}`} geometry={gf} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       );
     };
@@ -597,7 +597,7 @@ const CastlePencilCase = ({
     g.computeVertexNormals();
     return (
       <mesh geometry={g} name="CastleTopRing" receiveShadow>
-        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} {...texProps} />
+        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
       </mesh>
     );
   }, [isCylinder, outerDiameter, wallThickness, height, materialColor, texProps]);
@@ -607,7 +607,7 @@ const CastlePencilCase = ({
       color: materialColor,
       roughness: 0.9,
       side: THREE.DoubleSide,
-      ...texProps,
+      map: brickTex,
     });
   }, [materialColor, brickTex]);
 
