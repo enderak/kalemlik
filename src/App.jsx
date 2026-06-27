@@ -23,7 +23,9 @@ function downloadBlob(blob, filename) {
 const App = () => {
   const { t, i18n } = useTranslation();
 
+  const [shape, setShape] = useState('square');
   const [outerDiameter, setOuterDiameter] = useState(100);
+  const [outerSize, setOuterSize] = useState(100);
   const [height, setHeight] = useState(150);
   const [wallThickness, setWallThickness] = useState(4);
   const [bottomThickness, setBottomThickness] = useState(4);
@@ -32,6 +34,16 @@ const App = () => {
   const [hasDoor, setHasDoor] = useState(true);
   const [doorWidth, setDoorWidth] = useState(24);
   const [doorHeight, setDoorHeight] = useState(50);
+  const [hasWindows, setHasWindows] = useState(true);
+  const [numWindows, setNumWindows] = useState(3);
+  const [windowWidth, setWindowWidth] = useState(16);
+  const [windowHeight, setWindowHeight] = useState(24);
+  const [windowArched, setWindowArched] = useState(true);
+  const [hasTowers, setHasTowers] = useState(true);
+  const [towerRadius, setTowerRadius] = useState(8);
+  const [towerHeight, setTowerHeight] = useState(30);
+  const [cornerRadius, setCornerRadius] = useState(5);
+  const [showBrickTexture, setShowBrickTexture] = useState(true);
   const [materialColor, setMaterialColor] = useState('#a8a29e');
   const [doorColor, setDoorColor] = useState('#1c1917');
 
@@ -50,7 +62,8 @@ const App = () => {
 
     const result = exporter.parse(groupRef.current, { binary: true });
     const blob = new Blob([result], { type: 'application/octet-stream' });
-    downloadBlob(blob, `KaleKalemlik_${outerDiameter}x${height}_${Date.now()}.stl`);
+    const sizeLabel = shape === 'cylinder' ? outerDiameter : `${outerSize}x${outerSize}`;
+    downloadBlob(blob, `KaleKalemlik_${sizeLabel}x${height}_${Date.now()}.stl`);
 
     groupRef.current.scale.copy(origScale);
     groupRef.current.rotation.copy(origRot);
@@ -97,12 +110,41 @@ const App = () => {
         <div className="w-full md:w-72 shrink-0 space-y-4">
           <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
             <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
+              {t('shape')}
+            </h2>
+            <div className="flex gap-2 mb-4">
+              {['cylinder', 'square'].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setShape(s)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    shape === s
+                      ? 'bg-amber-600 text-white shadow-lg shadow-amber-900/30'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {t(`shape_${s}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
+            <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
               {t('dimensions')}
             </h2>
-            <Slider label={t('outer_diameter')} value={outerDiameter} onChange={setOuterDiameter} min={60} max={180} />
+            <Slider
+              label={shape === 'cylinder' ? t('outer_diameter') : t('outer_size')}
+              value={shape === 'cylinder' ? outerDiameter : outerSize}
+              onChange={shape === 'cylinder' ? setOuterDiameter : setOuterSize}
+              min={60} max={180}
+            />
             <Slider label={t('height')} value={height} onChange={setHeight} min={80} max={220} />
             <Slider label={t('wall_thickness')} value={wallThickness} onChange={setWallThickness} min={2} max={8} step={0.5} />
             <Slider label={t('bottom_thickness')} value={bottomThickness} onChange={setBottomThickness} min={2} max={8} step={0.5} />
+            {shape === 'square' && (
+              <Slider label={t('corner_radius')} value={cornerRadius} onChange={setCornerRadius} min={1} max={20} />
+            )}
           </div>
 
           <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
@@ -138,6 +180,57 @@ const App = () => {
             )}
           </div>
 
+          {shape === 'square' && (
+            <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
+              <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
+                {t('towers')}
+              </h2>
+              <label className="flex items-center gap-3 mb-3 cursor-pointer">
+                <div className="relative">
+                  <input type="checkbox" checked={hasTowers} onChange={(e) => setHasTowers(e.target.checked)} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                  <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+                </div>
+                <span className="text-sm text-slate-300">{t('has_towers')}</span>
+              </label>
+              {hasTowers && (
+                <>
+                  <Slider label={t('tower_radius')} value={towerRadius} onChange={setTowerRadius} min={4} max={20} />
+                  <Slider label={t('tower_height')} value={towerHeight} onChange={setTowerHeight} min={10} max={60} />
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
+            <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
+              {t('windows')}
+            </h2>
+            <label className="flex items-center gap-3 mb-3 cursor-pointer">
+              <div className="relative">
+                <input type="checkbox" checked={hasWindows} onChange={(e) => setHasWindows(e.target.checked)} className="sr-only peer" />
+                <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+              </div>
+              <span className="text-sm text-slate-300">{t('has_windows')}</span>
+            </label>
+            {hasWindows && (
+              <>
+                <Slider label={t('num_windows')} value={numWindows} onChange={setNumWindows} min={1} max={12} step={1} />
+                <Slider label={t('window_width')} value={windowWidth} onChange={setWindowWidth} min={8} max={30} />
+                <Slider label={t('window_height')} value={windowHeight} onChange={setWindowHeight} min={12} max={40} />
+                <label className="flex items-center gap-3 mb-3 cursor-pointer">
+                  <div className="relative">
+                    <input type="checkbox" checked={windowArched} onChange={(e) => setWindowArched(e.target.checked)} className="sr-only peer" />
+                    <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                    <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+                  </div>
+                  <span className="text-sm text-slate-300">{t('window_arched')}</span>
+                </label>
+              </>
+            )}
+          </div>
+
           <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
             <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
               {t('color')}
@@ -160,6 +253,14 @@ const App = () => {
                 className="w-8 h-8 rounded cursor-pointer border border-slate-600"
               />
             </div>
+            <label className="flex items-center gap-3 mt-3 cursor-pointer">
+              <div className="relative">
+                <input type="checkbox" checked={showBrickTexture} onChange={(e) => setShowBrickTexture(e.target.checked)} className="sr-only peer" />
+                <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+              </div>
+              <span className="text-sm text-slate-300">{t('brick_texture')}</span>
+            </label>
           </div>
 
           <button
@@ -194,7 +295,9 @@ const App = () => {
 
             <group scale={[SCALE, SCALE, SCALE]}>
               <CastlePencilCase
+                shape={shape}
                 outerDiameter={outerDiameter}
+                outerSize={outerSize}
                 height={height}
                 wallThickness={wallThickness}
                 bottomThickness={bottomThickness}
@@ -203,6 +306,16 @@ const App = () => {
                 hasDoor={hasDoor}
                 doorWidth={doorWidth}
                 doorHeight={doorHeight}
+                hasWindows={hasWindows}
+                numWindows={numWindows}
+                windowWidth={windowWidth}
+                windowHeight={windowHeight}
+                windowArched={windowArched}
+                hasTowers={hasTowers}
+                towerRadius={towerRadius}
+                towerHeight={towerHeight}
+                cornerRadius={cornerRadius}
+                showBrickTexture={showBrickTexture}
                 materialColor={materialColor}
                 doorColor={doorColor}
                 groupRef={groupRef}
