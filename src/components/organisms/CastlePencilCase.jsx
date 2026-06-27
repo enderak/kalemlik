@@ -596,6 +596,9 @@ const CastlePencilCase = ({
   return (
     <group ref={groupRef} name="CastlePencilCase">
       <mesh geometry={bodyGeom} name="CastleBody" material={wallMat} receiveShadow castShadow />
+      {baseHeight > 0 && baseGeom && (
+        <mesh geometry={baseGeom} name="CastleBase" material={wallMat} receiveShadow castShadow />
+      )}
       {topRing}
       {towerMeshes}
       {brickMeshes}
