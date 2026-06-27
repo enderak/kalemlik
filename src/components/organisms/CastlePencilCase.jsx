@@ -439,30 +439,30 @@ const CastlePencilCase = ({
       const innerR = Math.max(0.5, outerR - wallThickness);
       const geoms = makeCylinderCrenGeoms(outerR, innerR, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
-        <mesh key={`cren-c-${i}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
+        <mesh key={`cren-c-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
     } else {
       const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
-        <mesh key={`cren-s-${i}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
+        <mesh key={`cren-s-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
     }
-  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth, materialColor, texProps]);
+  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth, materialColor, showBrickTexture, texProps]);
 
   /* --- towers --- */
   const towerMeshes = useMemo(() => {
     if (isCylinder || !hasTowers) return null;
     const geoms = makeSquareTowerGeoms(outerSize, height, towerRadius, towerHeight);
     return geoms.map((g, i) => (
-      <mesh key={`tower-${i}`} geometry={g} name={`Tower_${i}`} receiveShadow castShadow>
+      <mesh key={`tower-${i}-${showBrickTexture}`} geometry={g} name={`Tower_${i}`} receiveShadow castShadow>
         <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
       </mesh>
     ));
-  }, [isCylinder, hasTowers, outerSize, height, towerRadius, towerHeight, materialColor, texProps]);
+  }, [isCylinder, hasTowers, outerSize, height, towerRadius, towerHeight, showBrickTexture, materialColor, texProps]);
 
   /* --- 3D embossed bricks --- */
   const brickMeshes = useMemo(() => {
@@ -472,7 +472,7 @@ const CastlePencilCase = ({
       const outerR = outerDiameter / 2;
       const geoms = makeCylinderBrickGeoms(outerR, height, brickDepth, bw, bh, gap);
       return geoms.map((g, i) => (
-        <mesh key={`brick-c-${i}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
+        <mesh key={`brick-c-${i}-${showBrickTexture}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       ));
@@ -484,7 +484,7 @@ const CastlePencilCase = ({
         </mesh>
       ));
     }
-  }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, brickDepth, materialColor, texProps]);
+  }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, brickDepth, showBrickTexture, materialColor, texProps]);
 
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
@@ -497,7 +497,7 @@ const CastlePencilCase = ({
     const bottomY = isCylinder ? 0 : -height / 2;
     const posY = bottomY + bottomThickness + doorHeight;
     return (
-      <group position={[0, posY, frontZ]}>
+      <group key={`door-${showBrickTexture}`} position={[0, posY, frontZ]}>
         <mesh geometry={openGeom} name="CastleDoor" receiveShadow>
           <meshStandardMaterial color={doorColor} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>
@@ -506,7 +506,7 @@ const CastlePencilCase = ({
         </mesh>
       </group>
     );
-  }, [hasDoor, doorWidth, doorHeight, doorRecess, wallThickness, isCylinder, outerDiameter, outerSize, bottomThickness, height, doorColor, materialColor, texProps]);
+  }, [hasDoor, doorWidth, doorHeight, doorRecess, wallThickness, isCylinder, outerDiameter, outerSize, bottomThickness, height, showBrickTexture, doorColor, materialColor, texProps]);
 
   /* --- windows --- */
   const windowMeshes = useMemo(() => {
@@ -523,10 +523,10 @@ const CastlePencilCase = ({
 
     const addPair = (key, go, gf) => {
       meshes.push(
-        <mesh key={`wo-${key}`} geometry={go} receiveShadow>
+        <mesh key={`wo-${key}-${showBrickTexture}`} geometry={go} receiveShadow>
           <meshStandardMaterial color={windowColor} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>,
-        <mesh key={`wf-${key}`} geometry={gf} receiveShadow castShadow>
+        <mesh key={`wf-${key}-${showBrickTexture}`} geometry={gf} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
       );
@@ -584,7 +584,7 @@ const CastlePencilCase = ({
       });
     }
     return meshes;
-  }, [hasWindows, numWindows, windowWidth, windowHeight, windowRecess, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, windowColor, materialColor, texProps]);
+  }, [hasWindows, numWindows, windowWidth, windowHeight, windowRecess, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, showBrickTexture, windowColor, materialColor, texProps]);
 
   /* --- top ring (cylinder only) --- */
   const topRing = useMemo(() => {
@@ -596,11 +596,11 @@ const CastlePencilCase = ({
     g.translate(0, height, 0);
     g.computeVertexNormals();
     return (
-      <mesh geometry={g} name="CastleTopRing" receiveShadow>
+      <mesh key={`topring-${showBrickTexture}`} geometry={g} name="CastleTopRing" receiveShadow>
         <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
       </mesh>
     );
-  }, [isCylinder, outerDiameter, wallThickness, height, materialColor, texProps]);
+  }, [isCylinder, outerDiameter, wallThickness, height, showBrickTexture, materialColor, texProps]);
 
   const wallMat = useMemo(() => {
     return new THREE.MeshStandardMaterial({
