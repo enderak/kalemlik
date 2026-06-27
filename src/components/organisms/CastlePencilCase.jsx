@@ -33,28 +33,35 @@ function createBrickTexture() {
 
 /* ============ SILINDIR GEOMETRY ============ */
 
-function makeCylinderCupBody(outerR, innerR, height, bottomThick, baseExt) {
+function makeCylinderCupBody(outerR, innerR, height, bottomThick) {
   const hh = height / 2;
   const innerH = height - bottomThick;
   const outerTube = new THREE.CylinderGeometry(outerR, outerR, height, SEG, 1, true);
   outerTube.translate(0, hh, 0);
   const innerTube = new THREE.CylinderGeometry(innerR, innerR, innerH, SEG, 1, true);
   innerTube.translate(0, innerH / 2 + bottomThick, 0);
-  const bottomR = outerR + baseExt;
-  const bottom = new THREE.RingGeometry(innerR, bottomR, SEG);
+  const bottom = new THREE.RingGeometry(innerR, outerR, SEG);
   bottom.rotateX(-Math.PI / 2);
   return mergeGeoms([outerTube, innerTube, bottom]);
 }
 
-function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH) {
+function makeCylinderBaseGeom(outerR, baseExt, baseH) {
+  const r = outerR + baseExt;
+  const g = new THREE.CylinderGeometry(r, r, baseH, SEG);
+  g.translate(0, -baseH / 2, 0);
+  g.computeVertexNormals();
+  return g;
+}
+
+function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH, crenWRatio) {
   const midR = (outerR + innerR) / 2;
   const wallT = outerR - innerR;
   const gapA = (Math.PI * 2) / numCren;
-  const crenW = midR * gapA * 0.5;
+  const w = midR * gapA * THREE.MathUtils.clamp(crenWRatio, 0.1, 0.95);
   const boxes = [];
   for (let i = 0; i < numCren; i++) {
     const a = i * gapA;
-    const g = new THREE.BoxGeometry(crenW, crenH, wallT);
+    const g = new THREE.BoxGeometry(w, crenH, wallT);
     g.translate(0, height + crenH / 2, midR);
     const q = new THREE.Quaternion().setFromUnitVectors(
       new THREE.Vector3(0, 0, 1),
@@ -68,7 +75,7 @@ function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH) {
 
 /* ============ KARE GEOMETRY ============ */
 
-function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR, baseExt) {
+function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR) {
   const s = outerSize / 2;
   const r = Math.min(cornerR, s);
   const outer = new THREE.Shape();
@@ -100,14 +107,12 @@ function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR, b
   innerGeom.rotateX(-Math.PI / 2);
   innerGeom.translate(0, bottomThick, 0);
 
-  const sb = s + baseExt;
-  const rb = Math.min(cornerR, sb);
   const cap = new THREE.Shape();
-  cap.moveTo(-sb + rb, -sb);
-  cap.lineTo(sb - rb, -sb).quadraticCurveTo(sb, -sb, sb, -sb + rb);
-  cap.lineTo(sb, sb - rb).quadraticCurveTo(sb, sb, sb - rb, sb);
-  cap.lineTo(-sb + rb, sb).quadraticCurveTo(-sb, sb, -sb, sb - rb);
-  cap.lineTo(-sb, -sb + rb).quadraticCurveTo(-sb, -sb, -sb + rb, -sb);
+  cap.moveTo(-s + r, -s);
+  cap.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
+  cap.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
+  cap.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
+  cap.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
   const bottomGeom = new THREE.ExtrudeGeometry(cap, { depth: bottomThick, bevelEnabled: false });
   bottomGeom.rotateX(-Math.PI / 2);
   bottomGeom.translate(0, -height / 2, 0);
@@ -115,11 +120,26 @@ function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR, b
   return mergeGeoms([wallGeom, innerGeom, bottomGeom]);
 }
 
-function makeSquareCrenGeoms(outerSize, wallThick, height, numCren, crenH) {
+function makeSquareBaseGeom(outerSize, baseExt, baseH, cornerR, wallHeight) {
+  const s = outerSize / 2 + baseExt;
+  const r = Math.min(cornerR, s);
+  const shape = new THREE.Shape();
+  shape.moveTo(-s + r, -s);
+  shape.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
+  shape.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
+  shape.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
+  shape.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
+  const g = new THREE.ExtrudeGeometry(shape, { depth: baseH, bevelEnabled: false });
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, -wallHeight / 2 - baseH, 0);
+  g.computeVertexNormals();
+  return g;
+}
+
+function makeSquareCrenGeoms(outerSize, wallThick, height, numCren, crenH, crenWRatio) {
   const s = outerSize / 2;
   const hh = height / 2;
   const wallCenter = s - wallThick / 2;
-  const crenW = (outerSize / numCren) * 0.55;
   const boxes = [];
   const sides = [
     { x: 1, z: 0 },
@@ -128,9 +148,11 @@ function makeSquareCrenGeoms(outerSize, wallThick, height, numCren, crenH) {
     { x: 0, z: 1 },
   ];
   const perSide = Math.max(1, Math.floor(numCren / 4));
+  const segLen = (outerSize - wallThick * 2) / perSide;
+  const crenW = segLen * THREE.MathUtils.clamp(crenWRatio, 0.1, 0.95);
   sides.forEach((side) => {
     for (let i = 0; i < perSide; i++) {
-      const t = (i - (perSide - 1) / 2) * ((outerSize - wallThick * 2) / perSide);
+      const t = (i - (perSide - 1) / 2) * segLen;
       const g = new THREE.BoxGeometry(wallThick, crenH, crenW);
       let px, pz;
       if (side.x !== 0) {
