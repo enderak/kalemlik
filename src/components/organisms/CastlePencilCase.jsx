@@ -489,14 +489,15 @@ const CastlePencilCase = ({
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
     if (!hasDoor) return null;
-    const depth = wallThickness + doorRecess;
-    const openGeom = makeArchedGeom(doorWidth, doorHeight, depth);
-    const frameGeom = makeFrameGeom(doorWidth, doorHeight, 3, depth, true);
+    const openDepth = -(wallThickness + doorRecess);
+    const frameDepth = -Math.max(doorRecess, 1);
+    const openGeom = makeArchedGeom(doorWidth, doorHeight, openDepth);
+    const frameGeom = makeFrameGeom(doorWidth, doorHeight, 3, frameDepth, true);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
     const bottomY = isCylinder ? 0 : -height / 2;
     const posY = bottomY + bottomThickness + doorHeight;
     return (
-      <group position={[0, posY, frontZ - 0.01]}>
+      <group position={[0, posY, frontZ]}>
         <mesh geometry={openGeom} name="CastleDoor" receiveShadow>
           <meshStandardMaterial color={doorColor} roughness={0.9} side={THREE.DoubleSide} />
         </mesh>
@@ -510,10 +511,11 @@ const CastlePencilCase = ({
   /* --- windows --- */
   const windowMeshes = useMemo(() => {
     if (!hasWindows) return null;
-    const depth = wallThickness + windowRecess;
+    const openDepth = -(wallThickness + windowRecess);
+    const frameDepth = -Math.max(windowRecess, 1);
     const makeOpen = windowArched ? makeArchedGeom : makeRectGeom;
-    const openBase = makeOpen(windowWidth, windowHeight, depth);
-    const frameBase = makeFrameGeom(windowWidth, windowHeight, 2.5, depth, windowArched);
+    const openBase = makeOpen(windowWidth, windowHeight, openDepth);
+    const frameBase = makeFrameGeom(windowWidth, windowHeight, 2.5, frameDepth, windowArched);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
     const bottomY = isCylinder ? 0 : -height / 2;
     const winY = bottomY + height * 0.6;
@@ -548,7 +550,7 @@ const CastlePencilCase = ({
         addPair(`c-${i}`, go, gf);
       }
     } else {
-      const half = outerSize / 2 - wallThickness / 2;
+      const half = outerSize / 2;
       const sides = [
         { x: 0, z: 1 },
         { x: 1, z: 0 },
@@ -570,6 +572,10 @@ const CastlePencilCase = ({
           } else {
             px = t;
             pz = s.z * half;
+            if (s.z < 0) {
+              go.rotateY(Math.PI);
+              gf.rotateY(Math.PI);
+            }
           }
           go.translate(px, winY + windowHeight, pz);
           gf.translate(px, winY + windowHeight, pz);
