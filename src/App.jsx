@@ -23,7 +23,7 @@ function downloadBlob(blob, filename) {
 const App = () => {
   const { t, i18n } = useTranslation();
 
-  const [shape, setShape] = useState('square');
+  const [shape, setShape] = useState('cylinder');
   const [outerDiameter, setOuterDiameter] = useState(100);
   const [outerSize, setOuterSize] = useState(100);
   const [height, setHeight] = useState(150);
