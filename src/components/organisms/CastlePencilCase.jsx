@@ -165,9 +165,71 @@ function makeSquareTowerGeoms(outerSize, height, towerR, towerH) {
   });
 }
 
-/* ============ KEMERLI KAPI (duguk, ice gomulu) ============ */
+/* ============ 3D KABARTMALI TUGLA ============ */
 
-function makeArchedOpeningGeom(w, h, depth) {
+function makeCylinderBrickGeoms(outerR, height, brickDepth, brickW, brickH, gap) {
+  const bricks = [];
+  const rows = Math.floor(height / (brickH + gap));
+  const circ = Math.PI * 2 * outerR;
+  const cols = Math.floor(circ / (brickW + gap));
+  const aStep = (Math.PI * 2) / cols;
+  for (let r = 0; r < rows; r++) {
+    const y = r * (brickH + gap) + brickH / 2;
+    const off = (r % 2) * (aStep / 2);
+    for (let c = 0; c < cols; c++) {
+      const a = c * aStep + off;
+      const g = new THREE.BoxGeometry(brickW * (outerR / 50), brickH, brickDepth);
+      g.translate(0, y, outerR);
+      const q = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
+      );
+      g.applyQuaternion(q);
+      bricks.push(g);
+    }
+  }
+  return bricks;
+}
+
+function makeSquareBrickGeoms(outerSize, wallThick, height, brickDepth, brickW, brickH, gap) {
+  const s = outerSize / 2;
+  const wallCenter = s - wallThick / 2;
+  const rows = Math.floor(height / (brickH + gap));
+  const cols = Math.floor((outerSize - wallThick) / (brickW + gap));
+  const bricks = [];
+  const sides = [
+    { x: 0, z: 1 },
+    { x: 1, z: 0 },
+    { x: 0, z: -1 },
+    { x: -1, z: 0 },
+  ];
+  sides.forEach((side) => {
+    for (let r = 0; r < rows; r++) {
+      const y = -height / 2 + r * (brickH + gap) + brickH / 2;
+      const off = (r % 2) * ((brickW + gap) / 2);
+      for (let c = 0; c < cols; c++) {
+        const t = -(outerSize - wallThick) / 2 + c * (brickW + gap) + brickW / 2 + off;
+        const g = new THREE.BoxGeometry(brickW, brickH, brickDepth);
+        let px, pz;
+        if (side.x !== 0) {
+          px = side.x * wallCenter;
+          pz = t;
+          g.rotateY(side.x > 0 ? Math.PI / 2 : -Math.PI / 2);
+        } else {
+          px = t;
+          pz = side.z * wallCenter;
+        }
+        g.translate(px, y, pz);
+        bricks.push(g);
+      }
+    }
+  });
+  return bricks;
+}
+
+/* ============ KAPI / PENCERE ============ */
+
+function makeArchedGeom(w, h, depth) {
   const hw = w / 2;
   const shape = new THREE.Shape();
   shape.moveTo(-hw, 0);
@@ -177,30 +239,55 @@ function makeArchedOpeningGeom(w, h, depth) {
   shape.absarc(0, 0, hw, 0, Math.PI, false);
   shape.closePath();
   const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-  g.translate(0, 0, 0);
   g.computeVertexNormals();
   return g;
 }
 
-function makeWindowGeom(w, h, depth, arched = true) {
+function makeRectGeom(w, h, depth) {
   const hw = w / 2;
   const shape = new THREE.Shape();
-  if (arched) {
-    shape.moveTo(-hw, 0);
-    shape.lineTo(-hw, -h);
-    shape.lineTo(hw, -h);
-    shape.lineTo(hw, 0);
-    shape.absarc(0, 0, hw, 0, Math.PI, false);
-    shape.closePath();
-  } else {
-    shape.moveTo(-hw, 0);
-    shape.lineTo(-hw, -h);
-    shape.lineTo(hw, -h);
-    shape.lineTo(hw, 0);
-    shape.closePath();
-  }
+  shape.moveTo(-hw, 0);
+  shape.lineTo(-hw, -h);
+  shape.lineTo(hw, -h);
+  shape.lineTo(hw, 0);
+  shape.closePath();
   const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-  g.translate(0, 0, 0);
+  g.computeVertexNormals();
+  return g;
+}
+
+function makeFrameGeom(w, h, fw, depth, arched) {
+  const hw = w / 2 + fw;
+  const hh = h + fw;
+  const outerS = new THREE.Shape();
+  outerS.moveTo(-hw, 0);
+  if (arched) {
+    outerS.lineTo(-hw, -hh);
+    outerS.lineTo(hw, -hh);
+    outerS.lineTo(hw, 0);
+    outerS.absarc(0, 0, hw, 0, Math.PI, false);
+  } else {
+    outerS.lineTo(-hw, -hh);
+    outerS.lineTo(hw, -hh);
+    outerS.lineTo(hw, 0);
+  }
+  outerS.closePath();
+  const innerS = new THREE.Path();
+  const iw = w / 2;
+  innerS.moveTo(-iw, 0);
+  if (arched) {
+    innerS.lineTo(-iw, -h);
+    innerS.lineTo(iw, -h);
+    innerS.lineTo(iw, 0);
+    innerS.absarc(0, 0, iw, 0, Math.PI, true);
+  } else {
+    innerS.lineTo(-iw, -h);
+    innerS.lineTo(iw, -h);
+    innerS.lineTo(iw, 0);
+  }
+  innerS.closePath();
+  outerS.holes.push(innerS);
+  const g = new THREE.ExtrudeGeometry(outerS, { depth, bevelEnabled: false });
   g.computeVertexNormals();
   return g;
 }
@@ -254,9 +341,11 @@ const CastlePencilCase = ({
   height = 150,
   wallThickness = 4,
   bottomThickness = 4,
-  baseExtension = 5,
+  baseHeight = 8,
+  baseExtension = 6,
   numCrenellations = 8,
   crenellationHeight = 20,
+  crenellationWidth = 0.5,
   hasDoor = true,
   doorWidth = 24,
   doorHeight = 50,
@@ -273,43 +362,55 @@ const CastlePencilCase = ({
   doorColor = '#1c1917',
   windowColor = '#1c1917',
   showBrickTexture = true,
+  embossedBricks = false,
+  brickDepth = 1.5,
   groupRef,
 }) => {
   const isCylinder = shape === 'cylinder';
-
-  const brickTexture = useMemo(() => (showBrickTexture ? createBrickTexture() : null), [showBrickTexture]);
+  const brickTex = useMemo(() => (showBrickTexture ? createBrickTexture() : null), [showBrickTexture]);
+  const texProps = brickTex ? { map: brickTex } : {};
 
   /* --- body --- */
   const bodyGeom = useMemo(() => {
     if (isCylinder) {
       const outerR = outerDiameter / 2;
       const innerR = Math.max(0.5, outerR - wallThickness);
-      return makeCylinderCupBody(outerR, innerR, height, bottomThickness, baseExtension);
+      return makeCylinderCupBody(outerR, innerR, height, bottomThickness);
     } else {
-      return makeSquareCupBody(outerSize, wallThickness, height, bottomThickness, cornerRadius, baseExtension);
+      return makeSquareCupBody(outerSize, wallThickness, height, bottomThickness, cornerRadius);
     }
-  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius, baseExtension]);
+  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius]);
+
+  /* --- base --- */
+  const baseGeom = useMemo(() => {
+    if (baseHeight <= 0) return null;
+    if (isCylinder) {
+      return makeCylinderBaseGeom(outerDiameter / 2, baseExtension, baseHeight);
+    } else {
+      return makeSquareBaseGeom(outerSize, baseExtension, baseHeight, cornerRadius, height);
+    }
+  }, [isCylinder, outerDiameter, outerSize, baseExtension, baseHeight, cornerRadius, height]);
 
   /* --- crenellations --- */
   const crenMeshes = useMemo(() => {
     if (isCylinder) {
       const outerR = outerDiameter / 2;
       const innerR = Math.max(0.5, outerR - wallThickness);
-      const geoms = makeCylinderCrenGeoms(outerR, innerR, height, numCrenellations, crenellationHeight);
+      const geoms = makeCylinderCrenGeoms(outerR, innerR, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
         <mesh key={`cren-c-${i}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTexture} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
         </mesh>
       ));
     } else {
-      const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight);
+      const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
         <mesh key={`cren-s-${i}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTexture} />
+          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
         </mesh>
       ));
     }
-  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, numCrenellations, crenellationHeight, materialColor, brickTexture]);
+  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth, materialColor, texProps]);
 
   /* --- towers --- */
   const towerMeshes = useMemo(() => {
@@ -317,57 +418,93 @@ const CastlePencilCase = ({
     const geoms = makeSquareTowerGeoms(outerSize, height, towerRadius, towerHeight);
     return geoms.map((g, i) => (
       <mesh key={`tower-${i}`} geometry={g} name={`Tower_${i}`} receiveShadow castShadow>
-        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTexture} />
+        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} {...texProps} />
       </mesh>
     ));
-  }, [isCylinder, hasTowers, outerSize, height, towerRadius, towerHeight, materialColor, brickTexture]);
+  }, [isCylinder, hasTowers, outerSize, height, towerRadius, towerHeight, materialColor, texProps]);
 
-  /* --- door (recessed) --- */
+  /* --- 3D embossed bricks --- */
+  const brickMeshes = useMemo(() => {
+    if (!embossedBricks) return null;
+    const bw = 20, bh = 8, gap = 1;
+    if (isCylinder) {
+      const outerR = outerDiameter / 2;
+      const geoms = makeCylinderBrickGeoms(outerR, height, brickDepth, bw, bh, gap);
+      return geoms.map((g, i) => (
+        <mesh key={`brick-c-${i}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
+          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+        </mesh>
+      ));
+    } else {
+      const geoms = makeSquareBrickGeoms(outerSize, wallThickness, height, brickDepth, bw, bh, gap);
+      return geoms.map((g, i) => (
+        <mesh key={`brick-s-${i}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
+          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+        </mesh>
+      ));
+    }
+  }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, brickDepth, materialColor, texProps]);
+
+  /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
     if (!hasDoor) return null;
     const depth = wallThickness + 2;
-    const g = makeArchedOpeningGeom(doorWidth, doorHeight, depth);
+    const openGeom = makeArchedGeom(doorWidth, doorHeight, depth);
+    const frameGeom = makeFrameGeom(doorWidth, doorHeight, 3, depth, true);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
     const bottomY = isCylinder ? 0 : -height / 2;
+    const posY = bottomY + bottomThickness + doorHeight;
     return (
-      <mesh
-        geometry={g}
-        name="CastleDoor"
-        position={[0, bottomY + bottomThickness + doorHeight, frontZ - 0.01]}
-        rotation={[0, 0, 0]}
-        receiveShadow
-      >
-        <meshStandardMaterial color={doorColor} roughness={0.9} side={THREE.DoubleSide} />
-      </mesh>
+      <group position={[0, posY, frontZ - 0.01]}>
+        <mesh geometry={openGeom} name="CastleDoor" receiveShadow>
+          <meshStandardMaterial color={doorColor} roughness={0.9} side={THREE.DoubleSide} />
+        </mesh>
+        <mesh geometry={frameGeom} name="CastleDoorFrame" receiveShadow castShadow>
+          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+        </mesh>
+      </group>
     );
-  }, [hasDoor, doorWidth, doorHeight, wallThickness, isCylinder, outerDiameter, outerSize, bottomThickness, height, doorColor]);
+  }, [hasDoor, doorWidth, doorHeight, wallThickness, isCylinder, outerDiameter, outerSize, bottomThickness, height, doorColor, materialColor, texProps]);
 
   /* --- windows --- */
   const windowMeshes = useMemo(() => {
     if (!hasWindows) return null;
     const depth = wallThickness + 1;
-    const wGeom = makeWindowGeom(windowWidth, windowHeight, depth, windowArched);
+    const makeOpen = windowArched ? makeArchedGeom : makeRectGeom;
+    const openBase = makeOpen(windowWidth, windowHeight, depth);
+    const frameBase = makeFrameGeom(windowWidth, windowHeight, 2.5, depth, windowArched);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
     const bottomY = isCylinder ? 0 : -height / 2;
     const winY = bottomY + height * 0.6;
-
     const meshes = [];
+
+    const addPair = (key, go, gf) => {
+      meshes.push(
+        <mesh key={`wo-${key}`} geometry={go} receiveShadow>
+          <meshStandardMaterial color={windowColor} roughness={0.9} side={THREE.DoubleSide} />
+        </mesh>,
+        <mesh key={`wf-${key}`} geometry={gf} receiveShadow castShadow>
+          <meshStandardMaterial color={materialColor} roughness={0.85} {...texProps} />
+        </mesh>
+      );
+    };
 
     if (isCylinder) {
       for (let i = 0; i < numWindows; i++) {
         const a = (i / numWindows) * Math.PI * 2;
-        const g = wGeom.clone();
+        const px = Math.sin(a) * frontZ;
+        const pz = Math.cos(a) * frontZ;
+        const go = openBase.clone();
+        const gf = frameBase.clone();
         const q = new THREE.Quaternion().setFromUnitVectors(
           new THREE.Vector3(0, 0, 1),
           new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
         );
-        g.applyQuaternion(q);
-        g.translate(Math.sin(a) * frontZ, winY + windowHeight, Math.cos(a) * frontZ);
-        meshes.push(
-          <mesh key={`win-${i}`} geometry={g} name={`Window_${i}`} receiveShadow>
-            <meshStandardMaterial color={windowColor} roughness={0.9} side={THREE.DoubleSide} />
-          </mesh>
-        );
+        go.applyQuaternion(q);
+        gf.applyQuaternion(q);
+        go.translate(px, winY + windowHeight, pz);
+        gf.translate(px, winY + windowHeight, pz);
+        addPair(`c-${i}`, go, gf);
       }
     } else {
       const half = outerSize / 2 - wallThickness / 2;
@@ -377,31 +514,30 @@ const CastlePencilCase = ({
         { x: 0, z: -1 },
         { x: -1, z: 0 },
       ];
-      sides.forEach((s, si) => {
+      sides.forEach((s) => {
         const perSide = Math.max(1, Math.floor(numWindows / 4));
         for (let i = 0; i < perSide; i++) {
           const t = (i - (perSide - 1) / 2) * ((outerSize * 0.6) / perSide);
-          const g = wGeom.clone();
+          const go = openBase.clone();
+          const gf = frameBase.clone();
           let px, pz;
           if (s.x !== 0) {
             px = s.x * half;
             pz = t;
-            g.rotateY(s.x > 0 ? Math.PI / 2 : -Math.PI / 2);
+            go.rotateY(s.x > 0 ? Math.PI / 2 : -Math.PI / 2);
+            gf.rotateY(s.x > 0 ? Math.PI / 2 : -Math.PI / 2);
           } else {
             px = t;
             pz = s.z * half;
           }
-          g.translate(px, winY + windowHeight, pz);
-          meshes.push(
-            <mesh key={`win-${si}-${i}`} geometry={g} name={`Window_${si}_${i}`} receiveShadow>
-              <meshStandardMaterial color={windowColor} roughness={0.9} side={THREE.DoubleSide} />
-            </mesh>
-          );
+          go.translate(px, winY + windowHeight, pz);
+          gf.translate(px, winY + windowHeight, pz);
+          addPair(`s-${s.x}-${s.z}-${i}`, go, gf);
         }
       });
     }
     return meshes;
-  }, [hasWindows, numWindows, windowWidth, windowHeight, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, windowColor]);
+  }, [hasWindows, numWindows, windowWidth, windowHeight, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, windowColor, materialColor, texProps]);
 
   /* --- top ring (cylinder only) --- */
   const topRing = useMemo(() => {
@@ -414,17 +550,17 @@ const CastlePencilCase = ({
     g.computeVertexNormals();
     return (
       <mesh geometry={g} name="CastleTopRing" receiveShadow>
-        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTexture} />
+        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} {...texProps} />
       </mesh>
     );
-  }, [isCylinder, outerDiameter, wallThickness, height, materialColor, brickTexture]);
+  }, [isCylinder, outerDiameter, wallThickness, height, materialColor, texProps]);
 
   const wallMat = useMemo(() => {
     return new THREE.MeshStandardMaterial({
       color: materialColor,
       roughness: 0.9,
       side: THREE.DoubleSide,
-      map: brickTexture,
+      ...texProps,
     });
   }, [materialColor, brickTexture]);
 
@@ -433,6 +569,7 @@ const CastlePencilCase = ({
       <mesh geometry={bodyGeom} name="CastleBody" material={wallMat} receiveShadow castShadow />
       {topRing}
       {towerMeshes}
+      {brickMeshes}
       {doorMesh}
       {windowMeshes}
       {crenMeshes}

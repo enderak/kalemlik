@@ -29,9 +29,11 @@ const App = () => {
   const [height, setHeight] = useState(150);
   const [wallThickness, setWallThickness] = useState(4);
   const [bottomThickness, setBottomThickness] = useState(4);
-  const [baseExtension, setBaseExtension] = useState(5);
+  const [baseHeight, setBaseHeight] = useState(8);
+  const [baseExtension, setBaseExtension] = useState(6);
   const [numCrenellations, setNumCrenellations] = useState(8);
   const [crenellationHeight, setCrenellationHeight] = useState(20);
+  const [crenellationWidth, setCrenellationWidth] = useState(0.5);
   const [hasDoor, setHasDoor] = useState(true);
   const [doorWidth, setDoorWidth] = useState(24);
   const [doorHeight, setDoorHeight] = useState(50);
@@ -45,6 +47,8 @@ const App = () => {
   const [towerHeight, setTowerHeight] = useState(30);
   const [cornerRadius, setCornerRadius] = useState(5);
   const [showBrickTexture, setShowBrickTexture] = useState(true);
+  const [embossedBricks, setEmbossedBricks] = useState(false);
+  const [brickDepth, setBrickDepth] = useState(1.5);
   const [materialColor, setMaterialColor] = useState('#a8a29e');
   const [doorColor, setDoorColor] = useState('#1c1917');
 
@@ -143,6 +147,7 @@ const App = () => {
             <Slider label={t('height')} value={height} onChange={setHeight} min={80} max={220} />
             <Slider label={t('wall_thickness')} value={wallThickness} onChange={setWallThickness} min={2} max={8} step={0.5} />
             <Slider label={t('bottom_thickness')} value={bottomThickness} onChange={setBottomThickness} min={2} max={8} step={0.5} />
+            <Slider label={t('base_height')} value={baseHeight} onChange={setBaseHeight} min={0} max={30} step={1} />
             <Slider label={t('base_extension')} value={baseExtension} onChange={setBaseExtension} min={0} max={30} step={1} />
             {shape === 'square' && (
               <Slider label={t('corner_radius')} value={cornerRadius} onChange={setCornerRadius} min={1} max={20} />
@@ -155,6 +160,7 @@ const App = () => {
             </h2>
             <Slider label={t('num_crenellations')} value={numCrenellations} onChange={setNumCrenellations} min={4} max={16} step={1} />
             <Slider label={t('crenellation_height')} value={crenellationHeight} onChange={setCrenellationHeight} min={10} max={40} />
+            <Slider label={t('crenellation_width')} value={crenellationWidth} onChange={setCrenellationWidth} min={0.1} max={0.95} step={0.05} />
           </div>
 
           <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
@@ -263,6 +269,17 @@ const App = () => {
               </div>
               <span className="text-sm text-slate-300">{t('brick_texture')}</span>
             </label>
+            <label className="flex items-center gap-3 mt-3 cursor-pointer">
+              <div className="relative">
+                <input type="checkbox" checked={embossedBricks} onChange={(e) => setEmbossedBricks(e.target.checked)} className="sr-only peer" />
+                <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+              </div>
+              <span className="text-sm text-slate-300">{t('embossed_bricks')}</span>
+            </label>
+            {embossedBricks && (
+              <Slider label={t('brick_depth')} value={brickDepth} onChange={setBrickDepth} min={0.5} max={3} step={0.25} />
+            )}
           </div>
 
           <button
@@ -303,9 +320,11 @@ const App = () => {
                 height={height}
                 wallThickness={wallThickness}
                 bottomThickness={bottomThickness}
+                baseHeight={baseHeight}
                 baseExtension={baseExtension}
                 numCrenellations={numCrenellations}
                 crenellationHeight={crenellationHeight}
+                crenellationWidth={crenellationWidth}
                 hasDoor={hasDoor}
                 doorWidth={doorWidth}
                 doorHeight={doorHeight}
@@ -319,6 +338,8 @@ const App = () => {
                 towerHeight={towerHeight}
                 cornerRadius={cornerRadius}
                 showBrickTexture={showBrickTexture}
+                embossedBricks={embossedBricks}
+                brickDepth={brickDepth}
                 materialColor={materialColor}
                 doorColor={doorColor}
                 groupRef={groupRef}
