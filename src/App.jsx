@@ -29,6 +29,7 @@ const App = () => {
   const [height, setHeight] = useState(150);
   const [wallThickness, setWallThickness] = useState(4);
   const [bottomThickness, setBottomThickness] = useState(4);
+  const [baseExtension, setBaseExtension] = useState(5);
   const [numCrenellations, setNumCrenellations] = useState(8);
   const [crenellationHeight, setCrenellationHeight] = useState(20);
   const [hasDoor, setHasDoor] = useState(true);
@@ -142,6 +143,7 @@ const App = () => {
             <Slider label={t('height')} value={height} onChange={setHeight} min={80} max={220} />
             <Slider label={t('wall_thickness')} value={wallThickness} onChange={setWallThickness} min={2} max={8} step={0.5} />
             <Slider label={t('bottom_thickness')} value={bottomThickness} onChange={setBottomThickness} min={2} max={8} step={0.5} />
+            <Slider label={t('base_extension')} value={baseExtension} onChange={setBaseExtension} min={0} max={30} step={1} />
             {shape === 'square' && (
               <Slider label={t('corner_radius')} value={cornerRadius} onChange={setCornerRadius} min={1} max={20} />
             )}
@@ -301,6 +303,7 @@ const App = () => {
                 height={height}
                 wallThickness={wallThickness}
                 bottomThickness={bottomThickness}
+                baseExtension={baseExtension}
                 numCrenellations={numCrenellations}
                 crenellationHeight={crenellationHeight}
                 hasDoor={hasDoor}

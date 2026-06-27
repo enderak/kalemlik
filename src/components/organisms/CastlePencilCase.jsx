@@ -33,14 +33,15 @@ function createBrickTexture() {
 
 /* ============ SILINDIR GEOMETRY ============ */
 
-function makeCylinderCupBody(outerR, innerR, height, bottomThick) {
+function makeCylinderCupBody(outerR, innerR, height, bottomThick, baseExt) {
   const hh = height / 2;
   const innerH = height - bottomThick;
   const outerTube = new THREE.CylinderGeometry(outerR, outerR, height, SEG, 1, true);
   outerTube.translate(0, hh, 0);
   const innerTube = new THREE.CylinderGeometry(innerR, innerR, innerH, SEG, 1, true);
   innerTube.translate(0, innerH / 2 + bottomThick, 0);
-  const bottom = new THREE.RingGeometry(innerR, outerR, SEG);
+  const bottomR = outerR + baseExt;
+  const bottom = new THREE.RingGeometry(innerR, bottomR, SEG);
   bottom.rotateX(-Math.PI / 2);
   return mergeGeoms([outerTube, innerTube, bottom]);
 }
@@ -67,7 +68,7 @@ function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH) {
 
 /* ============ KARE GEOMETRY ============ */
 
-function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR) {
+function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR, baseExt) {
   const s = outerSize / 2;
   const r = Math.min(cornerR, s);
   const outer = new THREE.Shape();
@@ -99,14 +100,17 @@ function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR) {
   innerGeom.rotateX(-Math.PI / 2);
   innerGeom.translate(0, bottomThick, 0);
 
+  const sb = s + baseExt;
+  const rb = Math.min(cornerR, sb);
   const cap = new THREE.Shape();
-  cap.moveTo(-s + r, -s);
-  cap.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
-  cap.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
-  cap.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
-  cap.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
+  cap.moveTo(-sb + rb, -sb);
+  cap.lineTo(sb - rb, -sb).quadraticCurveTo(sb, -sb, sb, -sb + rb);
+  cap.lineTo(sb, sb - rb).quadraticCurveTo(sb, sb, sb - rb, sb);
+  cap.lineTo(-sb + rb, sb).quadraticCurveTo(-sb, sb, -sb, sb - rb);
+  cap.lineTo(-sb, -sb + rb).quadraticCurveTo(-sb, -sb, -sb + rb, -sb);
   const bottomGeom = new THREE.ExtrudeGeometry(cap, { depth: bottomThick, bevelEnabled: false });
   bottomGeom.rotateX(-Math.PI / 2);
+  bottomGeom.translate(0, -height / 2, 0);
 
   return mergeGeoms([wallGeom, innerGeom, bottomGeom]);
 }
@@ -250,6 +254,7 @@ const CastlePencilCase = ({
   height = 150,
   wallThickness = 4,
   bottomThickness = 4,
+  baseExtension = 5,
   numCrenellations = 8,
   crenellationHeight = 20,
   hasDoor = true,
@@ -279,11 +284,11 @@ const CastlePencilCase = ({
     if (isCylinder) {
       const outerR = outerDiameter / 2;
       const innerR = Math.max(0.5, outerR - wallThickness);
-      return makeCylinderCupBody(outerR, innerR, height, bottomThickness);
+      return makeCylinderCupBody(outerR, innerR, height, bottomThickness, baseExtension);
     } else {
-      return makeSquareCupBody(outerSize, wallThickness, height, bottomThickness, cornerRadius);
+      return makeSquareCupBody(outerSize, wallThickness, height, bottomThickness, cornerRadius, baseExtension);
     }
-  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius]);
+  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius, baseExtension]);
 
   /* --- crenellations --- */
   const crenMeshes = useMemo(() => {
