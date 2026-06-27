@@ -376,10 +376,12 @@ const CastlePencilCase = ({
   hasDoor = true,
   doorWidth = 24,
   doorHeight = 50,
+  doorRecess = 2,
   hasWindows = true,
   numWindows = 3,
   windowWidth = 16,
   windowHeight = 24,
+  windowRecess = 1,
   windowArched = true,
   hasTowers = true,
   towerRadius = 8,
@@ -475,7 +477,7 @@ const CastlePencilCase = ({
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
     if (!hasDoor) return null;
-    const depth = wallThickness + 2;
+    const depth = wallThickness + doorRecess;
     const openGeom = makeArchedGeom(doorWidth, doorHeight, depth);
     const frameGeom = makeFrameGeom(doorWidth, doorHeight, 3, depth, true);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
@@ -491,12 +493,12 @@ const CastlePencilCase = ({
         </mesh>
       </group>
     );
-  }, [hasDoor, doorWidth, doorHeight, wallThickness, isCylinder, outerDiameter, outerSize, bottomThickness, height, doorColor, materialColor, texProps]);
+  }, [hasDoor, doorWidth, doorHeight, doorRecess, wallThickness, isCylinder, outerDiameter, outerSize, bottomThickness, height, doorColor, materialColor, texProps]);
 
   /* --- windows --- */
   const windowMeshes = useMemo(() => {
     if (!hasWindows) return null;
-    const depth = wallThickness + 1;
+    const depth = wallThickness + windowRecess;
     const makeOpen = windowArched ? makeArchedGeom : makeRectGeom;
     const openBase = makeOpen(windowWidth, windowHeight, depth);
     const frameBase = makeFrameGeom(windowWidth, windowHeight, 2.5, depth, windowArched);
@@ -564,7 +566,7 @@ const CastlePencilCase = ({
       });
     }
     return meshes;
-  }, [hasWindows, numWindows, windowWidth, windowHeight, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, windowColor, materialColor, texProps]);
+  }, [hasWindows, numWindows, windowWidth, windowHeight, windowRecess, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, windowColor, materialColor, texProps]);
 
   /* --- top ring (cylinder only) --- */
   const topRing = useMemo(() => {

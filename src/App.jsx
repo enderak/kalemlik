@@ -37,10 +37,12 @@ const App = () => {
   const [hasDoor, setHasDoor] = useState(true);
   const [doorWidth, setDoorWidth] = useState(24);
   const [doorHeight, setDoorHeight] = useState(50);
+  const [doorRecess, setDoorRecess] = useState(2);
   const [hasWindows, setHasWindows] = useState(true);
   const [numWindows, setNumWindows] = useState(3);
   const [windowWidth, setWindowWidth] = useState(16);
   const [windowHeight, setWindowHeight] = useState(24);
+  const [windowRecess, setWindowRecess] = useState(1);
   const [windowArched, setWindowArched] = useState(true);
   const [hasTowers, setHasTowers] = useState(true);
   const [towerRadius, setTowerRadius] = useState(8);
@@ -184,6 +186,7 @@ const App = () => {
               <>
                 <Slider label={t('door_width')} value={doorWidth} onChange={setDoorWidth} min={15} max={40} />
                 <Slider label={t('door_height')} value={doorHeight} onChange={setDoorHeight} min={30} max={80} />
+                <Slider label={t('door_recess')} value={doorRecess} onChange={setDoorRecess} min={0} max={10} step={0.5} />
               </>
             )}
           </div>
@@ -227,6 +230,7 @@ const App = () => {
                 <Slider label={t('num_windows')} value={numWindows} onChange={setNumWindows} min={1} max={12} step={1} />
                 <Slider label={t('window_width')} value={windowWidth} onChange={setWindowWidth} min={8} max={30} />
                 <Slider label={t('window_height')} value={windowHeight} onChange={setWindowHeight} min={12} max={40} />
+                <Slider label={t('window_recess')} value={windowRecess} onChange={setWindowRecess} min={0} max={10} step={0.5} />
                 <label className="flex items-center gap-3 mb-3 cursor-pointer">
                   <div className="relative">
                     <input type="checkbox" checked={windowArched} onChange={(e) => setWindowArched(e.target.checked)} className="sr-only peer" />
@@ -328,10 +332,12 @@ const App = () => {
                 hasDoor={hasDoor}
                 doorWidth={doorWidth}
                 doorHeight={doorHeight}
+                doorRecess={doorRecess}
                 hasWindows={hasWindows}
                 numWindows={numWindows}
                 windowWidth={windowWidth}
                 windowHeight={windowHeight}
+                windowRecess={windowRecess}
                 windowArched={windowArched}
                 hasTowers={hasTowers}
                 towerRadius={towerRadius}
