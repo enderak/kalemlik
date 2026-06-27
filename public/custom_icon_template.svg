@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- SAKRAD Anahtarlık Özel Simge Şablonu -->
+  <!-- Kılavuz Çizgileri (Düzenleme yaptıktan sonra bu çizgileri silebilir veya gizleyebilirsiniz) -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4" />
+  <circle cx="50" cy="50" r="46" fill="none" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="4" />
+  
+  <!-- Örnek Simge Tasarımı (Kendi simgenizi buraya çizin, bu örnek yıldızı silin) -->
+  <!-- Önemli Not: Tasarımınız tek bir birleşik yol (path) veya dolgulu alan olmalıdır. -->
+  <path d="M 50 15 L 61 38 L 86 42 L 68 60 L 72 85 L 50 73 L 28 85 L 32 60 L 14 42 L 39 38 Z" fill="#000000" />
+</svg>
