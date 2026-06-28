@@ -108,6 +108,21 @@ const App = () => {
     setMaterialColor('#262626');
   };
 
+  const applyPresetSize = (d, h) => {
+    if (shape === 'cylinder') {
+      setOuterDiameter(d);
+    } else {
+      setOuterSize(d);
+    }
+    setHeight(h);
+    
+    // Auto-adjust central column diameter to fit within the outer ring
+    const maxCentralCol = Math.max(15, d - wallThickness * 2 - 10);
+    if (centralColumnDiameter > maxCentralCol) {
+      setCentralColumnDiameter(maxCentralCol);
+    }
+  };
+
   const groupRef = useRef();
 
   const handleExport = () => {
@@ -251,11 +266,54 @@ const App = () => {
                 <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
                   {t('dimensions')}
                 </h2>
+
+                {/* Size Presets */}
+                <div className="mb-4">
+                  <div className="text-[10px] text-slate-400 mb-2">{t('size_presets')}</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(100, 150)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_standard')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(60, 180)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_tall_narrow')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(50, 210)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_slim')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(120, 200)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_wide')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(80, 100)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors col-span-2"
+                    >
+                      {t('preset_size_compact')}
+                    </button>
+                  </div>
+                </div>
+
                 <Slider
                   label={shape === 'cylinder' ? t('outer_diameter') : t('outer_size')}
                   value={shape === 'cylinder' ? outerDiameter : outerSize}
                   onChange={shape === 'cylinder' ? setOuterDiameter : setOuterSize}
-                  min={60} max={180}
+                  min={40} max={180}
                 />
                 <Slider label={t('height')} value={height} onChange={setHeight} min={80} max={220} />
                 <Slider label={t('wall_thickness')} value={wallThickness} onChange={setWallThickness} min={2} max={8} step={0.5} />
@@ -503,7 +561,50 @@ const App = () => {
                 <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
                   {t('dimensions')}
                 </h2>
-                <Slider label={t('outer_diameter')} value={outerDiameter} onChange={setOuterDiameter} min={60} max={180} />
+
+                {/* Size Presets */}
+                <div className="mb-4">
+                  <div className="text-[10px] text-slate-400 mb-2">{t('size_presets')}</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(100, 150)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_standard')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(60, 180)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_tall_narrow')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(50, 210)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_slim')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(120, 200)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_wide')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyPresetSize(80, 100)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors col-span-2"
+                    >
+                      {t('preset_size_compact')}
+                    </button>
+                  </div>
+                </div>
+
+                <Slider label={t('outer_diameter')} value={outerDiameter} onChange={setOuterDiameter} min={40} max={180} />
                 <Slider label={t('height')} value={height} onChange={setHeight} min={80} max={220} />
                 <Slider label={t('wall_thickness')} value={wallThickness} onChange={setWallThickness} min={2} max={8} step={0.5} />
                 <Slider label={t('base_height')} value={baseHeight} onChange={setBaseHeight} min={0} max={30} step={1} />

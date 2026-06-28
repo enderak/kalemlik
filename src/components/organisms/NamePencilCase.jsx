@@ -1,10 +1,28 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
-import { Geometry, Base, Subtraction } from '@react-three/csg';
 import { useLoader } from '@react-three/fiber';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 
 const SEG = 48;
+
+// Helper to create a mathematically hollow tube (cylinder with a hole) without CSG,
+// which prevents the STLExporter from exporting extra hidden solid geometries.
+function makeHollowCylinderGeometry(outerRadius, innerRadius, height, segments) {
+  const shape = new THREE.Shape();
+  shape.absarc(0, 0, outerRadius, 0, Math.PI * 2, false);
+
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, innerRadius, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+
+  const geom = new THREE.ExtrudeGeometry(shape, {
+    depth: height,
+    bevelEnabled: false,
+    curveSegments: Math.max(4, segments / 4),
+  });
+  geom.rotateX(-Math.PI / 2); // align with Y-axis
+  return geom;
+}
 
 // Helper function to subdivide a geometry's triangles.
 // This increases vertex density so the flat faces bend smoothly around the cylinder without creases.
@@ -120,38 +138,22 @@ const NamePencilCase = ({
     return g;
   }, [outerR, baseExtension, baseHeight]);
 
-  // 2. Top Ring Geometry (CSG subtraction)
-  const topRingOuterGeom = useMemo(() => {
-    const g = new THREE.CylinderGeometry(outerR, outerR, topRingHeight, SEG);
-    g.translate(0, height - topRingHeight / 2, 0);
+  // 2. Top Ring Geometry (Native Hollow Cylinder)
+  const topRingGeom = useMemo(() => {
+    const g = makeHollowCylinderGeometry(outerR, innerR, topRingHeight, SEG);
+    g.translate(0, height - topRingHeight, 0);
     g.computeVertexNormals();
     return g;
-  }, [outerR, topRingHeight, height]);
+  }, [outerR, innerR, topRingHeight, height]);
 
-  const topRingInnerGeom = useMemo(() => {
-    const g = new THREE.CylinderGeometry(innerR, innerR, topRingHeight + 2, SEG);
-    g.translate(0, height - topRingHeight / 2, 0);
-    g.computeVertexNormals();
-    return g;
-  }, [innerR, topRingHeight, height]);
-
-  // 3. Central Column Geometry
-  const centralColumnOuterGeom = useMemo(() => {
+  // 3. Central Column Geometry (Native Hollow Cylinder)
+  const centralColumnGeom = useMemo(() => {
     if (!hasCentralColumn) return null;
-    const r = centralColumnDiameter / 2;
+    const rOuter = centralColumnDiameter / 2;
+    const rInner = Math.max(1, rOuter - wallThickness);
     const h = height - baseHeight;
-    const g = new THREE.CylinderGeometry(r, r, h, SEG);
-    g.translate(0, baseHeight + h / 2, 0);
-    g.computeVertexNormals();
-    return g;
-  }, [hasCentralColumn, centralColumnDiameter, height, baseHeight]);
-
-  const centralColumnInnerGeom = useMemo(() => {
-    if (!hasCentralColumn) return null;
-    const r = Math.max(1, centralColumnDiameter / 2 - wallThickness);
-    const h = height - baseHeight + 2;
-    const g = new THREE.CylinderGeometry(r, r, h, SEG);
-    g.translate(0, baseHeight + (height - baseHeight) / 2, 0);
+    const g = makeHollowCylinderGeometry(rOuter, rInner, h, SEG);
+    g.translate(0, baseHeight, 0);
     g.computeVertexNormals();
     return g;
   }, [hasCentralColumn, centralColumnDiameter, wallThickness, height, baseHeight]);
@@ -382,21 +384,13 @@ const NamePencilCase = ({
       )}
 
       {/* 2. Top Ring */}
-      <mesh name="NameTopRing" material={mat} receiveShadow castShadow>
-        <Geometry>
-          <Base geometry={topRingOuterGeom} />
-          <Subtraction geometry={topRingInnerGeom} />
-        </Geometry>
-      </mesh>
+      {topRingGeom && (
+        <mesh geometry={topRingGeom} name="NameTopRing" material={mat} receiveShadow castShadow />
+      )}
 
       {/* 3. Central Column */}
-      {hasCentralColumn && centralColumnOuterGeom && centralColumnInnerGeom && (
-        <mesh name="NameCentralColumn" material={mat} receiveShadow castShadow>
-          <Geometry>
-            <Base geometry={centralColumnOuterGeom} />
-            <Subtraction geometry={centralColumnInnerGeom} />
-          </Geometry>
-        </mesh>
+      {hasCentralColumn && centralColumnGeom && (
+        <mesh geometry={centralColumnGeom} name="NameCentralColumn" material={mat} receiveShadow castShadow />
       )}
 
       {/* 4. Wrapped & Subdivided Text */}

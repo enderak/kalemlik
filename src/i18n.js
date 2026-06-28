@@ -75,6 +75,12 @@ const resources = {
       "divider_mode_support": "Sadece Destekler",
       "divider_mode_full": "Tam Bölmeler",
       "num_dividers": "Bölme Sayısı",
+      "size_presets": "BOYUT ŞABLONLARI",
+      "preset_size_standard": "Standart (10x15 cm)",
+      "preset_size_tall_narrow": "Klasik Dar (6x18 cm)",
+      "preset_size_slim": "Klasik İnce (5x21 cm)",
+      "preset_size_wide": "Geniş (12x20 cm)",
+      "preset_size_compact": "Kompakt (8x10 cm)",
     }
   },
   EN: {
@@ -150,6 +156,12 @@ const resources = {
       "divider_mode_support": "Supports Only",
       "divider_mode_full": "Full Dividers",
       "num_dividers": "Divider Count",
+      "size_presets": "SIZE PRESETS",
+      "preset_size_standard": "Standard (10x15 cm)",
+      "preset_size_tall_narrow": "Classic Tall (6x18 cm)",
+      "preset_size_slim": "Classic Slim (5x21 cm)",
+      "preset_size_wide": "Wide Desktop (12x20 cm)",
+      "preset_size_compact": "Compact (8x10 cm)",
     }
   },
 };
