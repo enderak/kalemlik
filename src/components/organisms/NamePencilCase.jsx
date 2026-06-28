@@ -211,6 +211,65 @@ const NamePencilCase = ({
     // Generate flat shapes from text using three.js font
     const shapes = font.generateShapes(renderedText, fontSize);
     
+    // Auto-merge floating dots (for Turkish characters like İ, Ö, Ü, Ğ)
+    // We inspect all 2D shapes, identify small floating dots/accents at the top,
+    // and pull them down to physically merge with the main letter body below.
+    shapes.forEach(shape => {
+      const points = shape.getPoints();
+      if (points.length === 0) return;
+      
+      let minY = Infinity;
+      let maxY = -Infinity;
+      points.forEach(p => {
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      });
+      
+      const shapeH = maxY - minY;
+      
+      // A dot is typically small (height < 25% of font size) and located high up (minY > 60% of font size)
+      const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
+      
+      if (isDot) {
+        // Target Y for the bottom of the dot to merge solid with the letter body below.
+        // Standard cap height is ~0.76 * fontSize, so merging at 0.72 * fontSize ensures a strong 3D print connection.
+        const targetMinY = fontSize * 0.72; 
+        const shiftY = minY - targetMinY;
+        
+        if (shiftY > 0) {
+          // Translate all curves in the shape path
+          shape.curves.forEach(curve => {
+            if (curve.v1) curve.v1.y -= shiftY;
+            if (curve.v2) curve.v2.y -= shiftY;
+            if (curve.v3) curve.v3.y -= shiftY;
+            if (curve.v4) curve.v4.y -= shiftY;
+            if (curve.p1) curve.p1.y -= shiftY;
+            if (curve.p2) curve.p2.y -= shiftY;
+          });
+          // Translate the start point
+          if (shape.currentPoint) {
+            shape.currentPoint.y -= shiftY;
+          }
+          // Also translate holes if any (though dots rarely have holes)
+          if (shape.holes) {
+            shape.holes.forEach(hole => {
+              hole.curves.forEach(curve => {
+                if (curve.v1) curve.v1.y -= shiftY;
+                if (curve.v2) curve.v2.y -= shiftY;
+                if (curve.v3) curve.v3.y -= shiftY;
+                if (curve.v4) curve.v4.y -= shiftY;
+                if (curve.p1) curve.p1.y -= shiftY;
+                if (curve.p2) curve.p2.y -= shiftY;
+              });
+              if (hole.currentPoint) {
+                hole.currentPoint.y -= shiftY;
+              }
+            });
+          }
+        }
+      }
+    });
+
     // Extrude flat shapes to get 3D geometry
     let geom = new THREE.ExtrudeGeometry(shapes, {
       depth: wallThickness,
