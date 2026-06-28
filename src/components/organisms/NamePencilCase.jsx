@@ -228,7 +228,30 @@ const NamePencilCase = ({
     const targetHeight = letterHeight + 2.0;
     const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
 
-    // Handle floating dots/accents (for Turkish characters like İ, Ö, Ü, Ğ)
+    // First Pass: Find all dot shapes and record their horizontal X centers.
+    const dotXCenters = [];
+    shapes.forEach(shape => {
+      const points = shape.getPoints();
+      if (points.length === 0) return;
+      
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      points.forEach(p => {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      });
+      
+      const shapeH = maxY - minY;
+      const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
+      
+      if (isDot) {
+        dotXCenters.push((minX + maxX) / 2);
+      }
+    });
+
+    // Second Pass: Connect dots with bridges OR integrate into ring and clamp the tops of the letter bodies.
     const bridges = [];
     shapes.forEach(shape => {
       const points = shape.getPoints();
@@ -244,14 +267,12 @@ const NamePencilCase = ({
       });
       
       const shapeH = maxY - minY;
-      
-      // A dot is typically small (height < 25% of font size) and located high up (minY > 60% of font size)
       const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
+      const centerX = (minX + maxX) / 2;
       
       if (isDot) {
         if (dotConnection === 'bridge') {
           // Mode 1: Connect with a vertical bridge
-          const centerX = (minX + maxX) / 2;
           const bridgeW = (maxX - minX) * 0.45;
           const bridgeBottom = fontSize * 0.70;
           const bridgeTop = minY + 2.0;
@@ -273,8 +294,7 @@ const NamePencilCase = ({
           // Mode 2: Integrate into Ring.
           // Shift the dot shape Y coordinates downwards so that the dot is centered 
           // on the top ring's Y center, merging them directly.
-          // We use a Set to track processed Vector2 references to prevent duplicate translations 
-          // (which causes spiky coordinate distortions).
+          // We use a Set to track processed Vector2 references to prevent duplicate translations.
           const targetCenterY = letterHeight + topRingHeight / 2;
           const currentCenterY = ((minY + maxY) / 2 - refBaseline); // relative to baseline (before scaling)
           const shiftY = currentCenterY * scaleFactor - targetCenterY;
@@ -290,7 +310,7 @@ const NamePencilCase = ({
             };
             
             shape.curves.forEach(curve => {
-              shiftVector(curve.v0); // Start point of Bezier curves (crucial to prevent spiky distortion!)
+              shiftVector(curve.v0); // Start point of Bezier curves
               shiftVector(curve.v1);
               shiftVector(curve.v2);
               shiftVector(curve.v3);
@@ -300,6 +320,39 @@ const NamePencilCase = ({
             });
             shiftVector(shape.currentPoint);
           }
+        }
+      } else {
+        // Non-dot shape: check if it is the body of a dotted letter
+        // by verifying if its X center is close to any dot's X center.
+        const isDottedBody = dotXCenters.some(dotX => Math.abs(dotX - centerX) < fontSize * 0.4);
+        
+        if (isDottedBody && dotConnection === 'ring') {
+          // Clamp the top of the body shape to create a visual gap below the top ring/dot.
+          // We want a 2.5mm gap below the top ring (which starts at letterHeight).
+          // So the body shape should go at most up to letterHeight - 2.5.
+          const targetMaxY = letterHeight - 2.5;
+          const clampY = targetMaxY / scaleFactor + refBaseline;
+          
+          const clampedVectors = new Set();
+          const clampVector = (v) => {
+            if (v && !clampedVectors.has(v)) {
+              if (v.y > clampY) {
+                v.y = clampY;
+              }
+              clampedVectors.add(v);
+            }
+          };
+          
+          shape.curves.forEach(curve => {
+            clampVector(curve.v0);
+            clampVector(curve.v1);
+            clampVector(curve.v2);
+            clampVector(curve.v3);
+            clampVector(curve.v4);
+            clampVector(curve.p1);
+            clampVector(curve.p2);
+          });
+          clampVector(shape.currentPoint);
         }
       }
     });
