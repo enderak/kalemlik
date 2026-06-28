@@ -76,13 +76,14 @@ const App = () => {
 
   // Name specific states
   const [text, setText] = useState('SEMİH');
-  const [fontName, setFontName] = useState('DINMittelschriftStd.json');
+  const [fontName, setFontName] = useState('Plus_Jakarta_Sans_Bold.json');
   const [textArcAngle, setTextArcAngle] = useState(120);
   const [numVerticalBars, setNumVerticalBars] = useState(12);
   const [hasCentralColumn, setHasCentralColumn] = useState(true);
   const [centralColumnDiameter, setCentralColumnDiameter] = useState(30);
   const [dividerMode, setDividerMode] = useState('support');
   const [numDividers, setNumDividers] = useState(3);
+  const [autoRepeat, setAutoRepeat] = useState(true);
 
   const applyPresetChessRook = () => {
     setShape('cylinder');
@@ -474,8 +475,27 @@ const App = () => {
                   </select>
                 </div>
 
-                <Slider label={t('text_arc_angle')} value={textArcAngle} onChange={setTextArcAngle} min={60} max={360} step={10} />
-                <Slider label={t('num_vertical_bars')} value={numVerticalBars} onChange={setNumVerticalBars} min={0} max={30} step={1} />
+                {/* Auto Repeat Toggle */}
+                <label className="flex items-center gap-3 mb-4 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={autoRepeat}
+                      onChange={(e) => setAutoRepeat(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                    <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+                  </div>
+                  <span className="text-sm text-slate-300">{t('auto_repeat')}</span>
+                </label>
+
+                {!autoRepeat && (
+                  <>
+                    <Slider label={t('text_arc_angle')} value={textArcAngle} onChange={setTextArcAngle} min={60} max={360} step={10} />
+                    <Slider label={t('num_vertical_bars')} value={numVerticalBars} onChange={setNumVerticalBars} min={0} max={30} step={1} />
+                  </>
+                )}
               </div>
 
               {/* SHARED DIMENSIONS */}
@@ -655,6 +675,7 @@ const App = () => {
                   numDividers={numDividers}
                   materialColor={materialColor}
                   groupRef={groupRef}
+                  autoRepeat={autoRepeat}
                 />
               )}
             </group>
