@@ -197,7 +197,7 @@ const App = () => {
     <div className="min-h-screen w-full bg-[#0f172a] flex flex-col font-sans text-white pb-24 md:pb-0">
       <header className="px-6 py-4 flex justify-between items-center w-full max-w-6xl mx-auto border-b border-slate-800">
         <h1 className="font-bold tracking-tight text-lg text-amber-400">
-          {mode === 'name' ? '✏️ ' + t('mode_name').toUpperCase() : '🏰 ' + t('title')}
+          {mode === 'name' ? '✏️ ' + t('mode_name').toLocaleUpperCase('tr-TR') : '🏰 ' + t('title')}
         </h1>
         <button
           onClick={toggleLang}
@@ -529,7 +529,7 @@ const App = () => {
                   <input
                     type="text"
                     value={text}
-                    onChange={(e) => setText(e.target.value.toUpperCase())}
+                    onChange={(e) => setText(e.target.value.toLocaleUpperCase('tr-TR'))}
                     className="w-full bg-slate-800 text-white border border-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-500"
                   />
                 </div>
