@@ -262,6 +262,8 @@ const NamePencilCase = ({
 
     // Wrap flat geometry vertices around the cylinder
     const posAttr = geom.attributes.position;
+    const normAttr = geom.attributes.normal;
+
     for (let i = 0; i < posAttr.count; i++) {
       const x = posAttr.getX(i);
       const y = posAttr.getY(i);
@@ -275,10 +277,28 @@ const NamePencilCase = ({
       const newY = y;
 
       posAttr.setXYZ(i, newX, newY, newZ);
+
+      // Rotate original normals by the wrapping angle to preserve sharp 90-degree edges
+      // and keep smooth shading across flat cap segments.
+      if (normAttr) {
+        const nx = normAttr.getX(i);
+        const ny = normAttr.getY(i);
+        const nz = normAttr.getZ(i);
+
+        const rot = theta - Math.PI / 2;
+        const cosRot = Math.cos(rot);
+        const sinRot = Math.sin(rot);
+
+        const newNx = nx * cosRot - nz * sinRot;
+        const newNz = nx * sinRot + nz * cosRot;
+        const newNy = ny;
+
+        normAttr.setXYZ(i, newNx, newNy, newNz);
+      }
     }
     
     posAttr.needsUpdate = true;
-    geom.computeVertexNormals();
+    if (normAttr) normAttr.needsUpdate = true;
 
     return geom;
   }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight]);
