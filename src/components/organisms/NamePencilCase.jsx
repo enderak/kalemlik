@@ -52,9 +52,9 @@ function subdivideGeometry(geom, levels = 2) {
 
       let u0, u1, u2;
       if (uvAttr) {
-        u0 = new THREE.Vector2(uvAttr.getX(i), uvAttr.getY(i));
-        u1 = new THREE.Vector2(uvAttr.getX(i + 1), uvAttr.getY(i + 1));
-        u2 = new THREE.Vector2(uvAttr.getX(i + 2), uvAttr.getY(i + 2));
+        u0 = new THREE.Vector2(uvAttr.getX(i), Math.max(0, uvAttr.getY(i)));
+        u1 = new THREE.Vector2(uvAttr.getX(i + 1), Math.max(0, uvAttr.getY(i + 1)));
+        u2 = new THREE.Vector2(uvAttr.getX(i + 2), Math.max(0, uvAttr.getY(i + 2)));
       }
 
       // Calculate edge midpoints
@@ -232,6 +232,7 @@ const NamePencilCase = ({
     });
     refGeom.computeBoundingBox();
     const refHeight = refGeom.boundingBox.max.y - refGeom.boundingBox.min.y;
+    const refBaseline = refGeom.boundingBox.min.y; // Standard font baseline offset
     refGeom.dispose();
 
     const targetHeight = letterHeight + 2.0;
@@ -267,16 +268,17 @@ const NamePencilCase = ({
       }
     }
 
-    // Instead of geom.center() which shifts the baseline down when ascenders/dots are present,
-    // we align Y based on the absolute baseline of the letters (box.min.y before translation).
-    // The baseline of the letters will sit exactly 1mm inside the base.
+    // Centering offsets
     const translateX = - (box.max.x + box.min.x) / 2;
     const translateZ = - (box.max.z + box.min.z) / 2;
     
-    // Local Y offset corresponding to world space: baseHeight - 1.0
-    // posY = baseHeight + letterHeight / 2
+    // Calculate the scaled theoretical baseline Y position.
+    // Instead of using the global box.min.y (which is shifted by font overshoot or descenders),
+    // we use the measured refBaseline of 'E' scaled by scaleFactor.
+    // This places the standard letter baseline exactly at world: baseHeight - 1.0mm.
+    const scaledBaseline = refBaseline * scaleFactor;
     const targetLocalBaselineY = - (letterHeight / 2) - 1.0;
-    const translateY = targetLocalBaselineY - box.min.y;
+    const translateY = targetLocalBaselineY - scaledBaseline;
 
     geom.translate(translateX, translateY, translateZ);
 
