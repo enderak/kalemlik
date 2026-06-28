@@ -290,6 +290,7 @@ const NamePencilCase = ({
             };
             
             shape.curves.forEach(curve => {
+              shiftVector(curve.v0); // Start point of Bezier curves (crucial to prevent spiky distortion!)
               shiftVector(curve.v1);
               shiftVector(curve.v2);
               shiftVector(curve.v3);
