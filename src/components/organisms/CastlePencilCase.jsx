@@ -206,7 +206,7 @@ function makeSquareTowerGeoms(outerSize, height, towerR, towerH) {
 
 /* ============ 3D KABARTMALI TUGLA ============ */
 
-function makeCylinderBrickGeoms(outerR, height, brickDepth, brickW, brickH, gap) {
+function makeCylinderBrickGeoms(outerR, height, wallThick, brickDepth, brickW, brickH, gap) {
   const bricks = [];
   const rows = Math.floor(height / (brickH + gap));
   const circ = Math.PI * 2 * outerR;
@@ -218,7 +218,7 @@ function makeCylinderBrickGeoms(outerR, height, brickDepth, brickW, brickH, gap)
     for (let c = 0; c < cols; c++) {
       const a = c * aStep + off;
       const g = new THREE.BoxGeometry(brickW * (outerR / 50), brickH, brickDepth);
-      g.translate(0, y, outerR + brickDepth / 2);
+      g.translate(0, y, outerR - wallThick / 2);
       const q = new THREE.Quaternion().setFromUnitVectors(
         new THREE.Vector3(0, 0, 1),
         new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
@@ -250,12 +250,12 @@ function makeSquareBrickGeoms(outerSize, wallThick, height, brickDepth, brickW, 
         const g = new THREE.BoxGeometry(brickW, brickH, brickDepth);
         let px, pz;
         if (side.x !== 0) {
-          px = side.x * (s + brickDepth / 2);
+          px = side.x * (s - wallThick / 2);
           pz = t;
           g.rotateY(side.x > 0 ? Math.PI / 2 : -Math.PI / 2);
         } else {
           px = t;
-          pz = side.z * (s + brickDepth / 2);
+          pz = side.z * (s - wallThick / 2);
         }
         g.translate(px, y, pz);
         bricks.push(g);
@@ -469,7 +469,7 @@ const CastlePencilCase = ({
     const bw = 20, bh = 8, gap = 1;
     if (isCylinder) {
       const outerR = outerDiameter / 2;
-      const geoms = makeCylinderBrickGeoms(outerR, height, brickDepth, bw, bh, gap);
+      const geoms = makeCylinderBrickGeoms(outerR, height, wallThickness, brickDepth, bw, bh, gap);
       return geoms.map((g, i) => (
         <mesh key={`brick-c-${i}-${showBrickTexture}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
