@@ -101,6 +101,35 @@ function subdivideGeometry(geom, levels = 2) {
   return currentGeom;
 }
 
+// Helper to calculate 2D shape bounds directly from its curves without calling getPoints()
+// which triggers Three.js's internal point caching and prevents subsequent in-place modifications from taking effect.
+function getShapeBoundsFromCurves(shape) {
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+
+  const processVector = (v) => {
+    if (v) {
+      if (v.x < minX) minX = v.x;
+      if (v.x > maxX) maxX = v.x;
+      if (v.y < minY) minY = v.y;
+      if (v.y > maxY) maxY = v.y;
+    }
+  };
+
+  shape.curves.forEach(curve => {
+    processVector(curve.v0);
+    processVector(curve.v1);
+    processVector(curve.v2);
+    processVector(curve.v3);
+    processVector(curve.v4);
+    processVector(curve.p1);
+    processVector(curve.p2);
+  });
+  processVector(shape.currentPoint);
+
+  return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+}
+
 const NamePencilCase = ({
   text = 'ENDER',
   fontName = 'Plus_Jakarta_Sans_Bold.json',
@@ -229,53 +258,29 @@ const NamePencilCase = ({
     const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
 
     // First Pass: Find all dot shapes and record their horizontal X centers.
+    // We use getShapeBoundsFromCurves to prevent caching points.
     const dotXCenters = [];
     shapes.forEach(shape => {
-      const points = shape.getPoints();
-      if (points.length === 0) return;
-      
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
-      points.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
-      
-      const shapeH = maxY - minY;
-      const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
-      
+      const bounds = getShapeBoundsFromCurves(shape);
+      const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
       if (isDot) {
-        dotXCenters.push((minX + maxX) / 2);
+        dotXCenters.push((bounds.minX + bounds.maxX) / 2);
       }
     });
 
     // Second Pass: Connect dots with bridges OR integrate into ring and clamp the tops of the letter bodies.
     const bridges = [];
     shapes.forEach(shape => {
-      const points = shape.getPoints();
-      if (points.length === 0) return;
-      
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
-      points.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
-      
-      const shapeH = maxY - minY;
-      const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
-      const centerX = (minX + maxX) / 2;
+      const bounds = getShapeBoundsFromCurves(shape);
+      const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
+      const centerX = (bounds.minX + bounds.maxX) / 2;
       
       if (isDot) {
         if (dotConnection === 'bridge') {
           // Mode 1: Connect with a vertical bridge
-          const bridgeW = (maxX - minX) * 0.45;
+          const bridgeW = bounds.width * 0.45;
           const bridgeBottom = fontSize * 0.70;
-          const bridgeTop = minY + 2.0;
+          const bridgeTop = bounds.minY + 2.0;
 
           if (bridgeTop > bridgeBottom) {
             const bridge = new THREE.Shape();
@@ -296,7 +301,7 @@ const NamePencilCase = ({
           // on the top ring's Y center, merging them directly.
           // We use a Set to track processed Vector2 references to prevent duplicate translations.
           const targetCenterY = letterHeight + topRingHeight / 2;
-          const currentCenterY = ((minY + maxY) / 2 - refBaseline); // relative to baseline (before scaling)
+          const currentCenterY = ((bounds.minY + bounds.maxY) / 2 - refBaseline); // relative to baseline (before scaling)
           const shiftY = currentCenterY * scaleFactor - targetCenterY;
           
           if (shiftY > 0) {
@@ -328,9 +333,9 @@ const NamePencilCase = ({
         
         if (isDottedBody && dotConnection === 'ring') {
           // Clamp the top of the body shape to create a visual gap below the top ring/dot.
-          // We want a 7.0mm gap below the top ring (which starts at letterHeight).
-          // So the body shape should go at most up to letterHeight - 7.0.
-          const targetMaxY = letterHeight - 7.0;
+          // We want a prominent 9.0mm gap below the top ring (which starts at letterHeight).
+          // So the body shape should go at most up to letterHeight - 9.0.
+          const targetMaxY = letterHeight - 9.0;
           const clampY = targetMaxY / scaleFactor + refBaseline;
           
           const clampedVectors = new Set();
