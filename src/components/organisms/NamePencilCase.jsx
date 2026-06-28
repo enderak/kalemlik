@@ -101,35 +101,6 @@ function subdivideGeometry(geom, levels = 2) {
   return currentGeom;
 }
 
-// Helper to calculate 2D shape bounds directly from its curves without calling getPoints()
-// which triggers Three.js's internal point caching and prevents subsequent in-place modifications from taking effect.
-function getShapeBoundsFromCurves(shape) {
-  let minX = Infinity, maxX = -Infinity;
-  let minY = Infinity, maxY = -Infinity;
-
-  const processVector = (v) => {
-    if (v) {
-      if (v.x < minX) minX = v.x;
-      if (v.x > maxX) maxX = v.x;
-      if (v.y < minY) minY = v.y;
-      if (v.y > maxY) maxY = v.y;
-    }
-  };
-
-  shape.curves.forEach(curve => {
-    processVector(curve.v0);
-    processVector(curve.v1);
-    processVector(curve.v2);
-    processVector(curve.v3);
-    processVector(curve.v4);
-    processVector(curve.p1);
-    processVector(curve.p2);
-  });
-  processVector(shape.currentPoint);
-
-  return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
-}
-
 const NamePencilCase = ({
   text = 'ENDER',
   fontName = 'Plus_Jakarta_Sans_Bold.json',
@@ -241,6 +212,65 @@ const NamePencilCase = ({
     // Generate flat shapes from text using three.js font
     const shapes = font.generateShapes(renderedText, fontSize);
     
+    // Find all dot shapes and record their horizontal X centers.
+    const dots = [];
+    shapes.forEach(shape => {
+      const points = shape.getPoints();
+      if (points.length === 0) return;
+      
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      points.forEach(p => {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.y > maxY) maxY = p.y;
+      });
+      
+      const shapeH = maxY - minY;
+      const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
+      if (isDot) {
+        dots.push({ minX, maxX, minY, maxY });
+      }
+    });
+
+    // Create bridges in 2D space if in bridge mode
+    const bridges = [];
+    if (dotConnection === 'bridge') {
+      dots.forEach(dot => {
+        const centerX = (dot.minX + dot.maxX) / 2;
+        const bridgeW = (dot.maxX - dot.minX) * 0.45;
+        const bridgeBottom = fontSize * 0.70;
+        const bridgeTop = dot.minY + 2.0;
+
+        if (bridgeTop > bridgeBottom) {
+          const bridge = new THREE.Shape();
+          const x0 = centerX - bridgeW / 2;
+          const x1 = centerX + bridgeW / 2;
+          
+          bridge.moveTo(x0, bridgeBottom);
+          bridge.lineTo(x1, bridgeBottom);
+          bridge.lineTo(x1, bridgeTop);
+          bridge.lineTo(x0, bridgeTop);
+          bridge.closePath();
+          
+          bridges.push(bridge);
+        }
+      });
+      shapes.push(...bridges);
+    }
+
+    // Extrude flat shapes to get 3D geometry
+    let geom = new THREE.ExtrudeGeometry(shapes, {
+      depth: wallThickness,
+      bevelEnabled: false,
+      curveSegments: 32, // Smooth font outlines
+    });
+
+    // Subdivide the geometry to increase vertex density.
+    // This allows the cap faces to bend smoothly around the cylinder.
+    geom = subdivideGeometry(geom, 2);
+
     // Calculate a stable scale factor using a reference capital letter 'E'
     // instead of the whole text. This prevents letters with accents/dots (like 'İ')
     // from bloating the bounding box height and shrinking the other letters.
@@ -256,131 +286,55 @@ const NamePencilCase = ({
 
     const targetHeight = letterHeight + 2.0;
     const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
-
-    // First Pass: Find all dot shapes and record their horizontal X centers.
-    // We use getShapeBoundsFromCurves to prevent caching points.
-    const dotXCenters = [];
-    shapes.forEach(shape => {
-      const bounds = getShapeBoundsFromCurves(shape);
-      const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
-      if (isDot) {
-        dotXCenters.push((bounds.minX + bounds.maxX) / 2);
-      }
-    });
-
-    // Second Pass: Connect dots with bridges OR integrate into ring and clamp the tops of the letter bodies.
-    const bridges = [];
-    shapes.forEach(shape => {
-      const bounds = getShapeBoundsFromCurves(shape);
-      const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
-      const centerX = (bounds.minX + bounds.maxX) / 2;
-      
-      if (isDot) {
-        if (dotConnection === 'bridge') {
-          // Mode 1: Connect with a vertical bridge
-          const bridgeW = bounds.width * 0.45;
-          const bridgeBottom = fontSize * 0.70;
-          const bridgeTop = bounds.minY + 2.0;
-
-          if (bridgeTop > bridgeBottom) {
-            const bridge = new THREE.Shape();
-            const x0 = centerX - bridgeW / 2;
-            const x1 = centerX + bridgeW / 2;
-            
-            bridge.moveTo(x0, bridgeBottom);
-            bridge.lineTo(x1, bridgeBottom);
-            bridge.lineTo(x1, bridgeTop);
-            bridge.lineTo(x0, bridgeTop);
-            bridge.closePath();
-            
-            bridges.push(bridge);
-          }
-        } else {
-          // Mode 2: Integrate into Ring.
-          // Shift the dot shape Y coordinates downwards so that the dot is centered 
-          // on the top ring's Y center, merging them directly.
-          // We use a Set to track processed Vector2 references to prevent duplicate translations.
-          const targetCenterY = letterHeight + topRingHeight / 2;
-          const currentCenterY = ((bounds.minY + bounds.maxY) / 2 - refBaseline); // relative to baseline (before scaling)
-          const shiftY = currentCenterY * scaleFactor - targetCenterY;
-          
-          if (shiftY > 0) {
-            const deltaY = shiftY / scaleFactor;
-            const translatedVectors = new Set();
-            const shiftVector = (v) => {
-              if (v && !translatedVectors.has(v)) {
-                v.y -= deltaY;
-                translatedVectors.add(v);
-              }
-            };
-            
-            shape.curves.forEach(curve => {
-              shiftVector(curve.v0); // Start point of Bezier curves
-              shiftVector(curve.v1);
-              shiftVector(curve.v2);
-              shiftVector(curve.v3);
-              shiftVector(curve.v4);
-              shiftVector(curve.p1);
-              shiftVector(curve.p2);
-            });
-            shiftVector(shape.currentPoint);
-          }
-        }
-      } else {
-        // Non-dot shape: check if it is the body of a dotted letter
-        // by verifying if its X center is close to any dot's X center.
-        const isDottedBody = dotXCenters.some(dotX => Math.abs(dotX - centerX) < fontSize * 0.4);
-        
-        if (isDottedBody && dotConnection === 'ring') {
-          // Clamp the top of the body shape to create a visual gap below the top ring/dot.
-          // We want a prominent 9.0mm gap below the top ring (which starts at letterHeight).
-          // So the body shape should go at most up to letterHeight - 9.0.
-          const targetMaxY = letterHeight - 9.0;
-          const clampY = targetMaxY / scaleFactor + refBaseline;
-          
-          const clampedVectors = new Set();
-          const clampVector = (v) => {
-            if (v && !clampedVectors.has(v)) {
-              if (v.y > clampY) {
-                v.y = clampY;
-              }
-              clampedVectors.add(v);
-            }
-          };
-          
-          shape.curves.forEach(curve => {
-            clampVector(curve.v0);
-            clampVector(curve.v1);
-            clampVector(curve.v2);
-            clampVector(curve.v3);
-            clampVector(curve.v4);
-            clampVector(curve.p1);
-            clampVector(curve.p2);
-          });
-          clampVector(shape.currentPoint);
-        }
-      }
-    });
-
-    if (dotConnection === 'bridge') {
-      shapes.push(...bridges);
-    }
-
-    // Extrude flat shapes to get 3D geometry
-    let geom = new THREE.ExtrudeGeometry(shapes, {
-      depth: wallThickness,
-      bevelEnabled: false,
-      curveSegments: 32, // Smooth font outlines
-    });
-
-    // Subdivide the geometry to increase vertex density.
-    // This allows the cap faces to bend smoothly around the cylinder.
-    geom = subdivideGeometry(geom, 2);
     
     // Scale the geometry in X and Y
     geom.scale(scaleFactor, scaleFactor, 1);
+
+    // If 'ring' mode is active, modify the final 3D geometry vertices (before wrapping)
+    // to shift dots down and clamp the letter bodies to create a clean 3.0mm gap.
+    // This completely avoids Three.js 2D path caching and shared-reference coordinate corruption.
+    if (dotConnection === 'ring') {
+      const posAttr = geom.attributes.position;
+      
+      for (let i = 0; i < posAttr.count; i++) {
+        const x = posAttr.getX(i);
+        const y = posAttr.getY(i);
+        
+        // Check if this vertex falls within the horizontal range of any dot
+        for (const dot of dots) {
+          const dotMinX = dot.minX * scaleFactor;
+          const dotMaxX = dot.maxX * scaleFactor;
+          
+          // Add a small 0.5mm tolerance on the sides to catch all outline vertices
+          if (x >= dotMinX - 0.5 && x <= dotMaxX + 0.5) {
+            const dotMinY = dot.minY * scaleFactor;
+            
+            if (y >= dotMinY - 1.0) {
+              // This is a vertex of the dot shape itself!
+              // Shift the dot Y coordinates downwards so that the dot is centered on the top ring.
+              const targetCenterY = letterHeight + topRingHeight / 2;
+              const currentCenterY = ((dot.minY + dot.maxY) / 2 - refBaseline) * scaleFactor;
+              const shiftY = currentCenterY - targetCenterY;
+              
+              if (shiftY > 0) {
+                posAttr.setY(i, y - shiftY);
+              }
+            } else {
+              // This is a vertex of the dotted letter's main body!
+              // Clamp its Y coordinate to create a clean 3.0mm gap below the top ring (which starts at letterHeight).
+              const targetMaxY = letterHeight - 3.0;
+              if (y > targetMaxY) {
+                posAttr.setY(i, targetMaxY);
+              }
+            }
+            break; // processed for this dot
+          }
+        }
+      }
+      posAttr.needsUpdate = true;
+    }
     
-    // Compute bounding box after scaling
+    // Compute bounding box after vertex modifications
     geom.computeBoundingBox();
     let box = geom.boundingBox;
     let width = box.max.x - box.min.x;
