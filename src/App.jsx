@@ -84,6 +84,7 @@ const App = () => {
   const [dividerMode, setDividerMode] = useState('support');
   const [numDividers, setNumDividers] = useState(3);
   const [autoRepeat, setAutoRepeat] = useState(true);
+  const [dotConnection, setDotConnection] = useState('ring');
 
   const applyPresetChessRook = () => {
     setShape('cylinder');
@@ -565,6 +566,27 @@ const App = () => {
                   <span className="text-sm text-slate-300">{t('auto_repeat')}</span>
                 </label>
 
+                {/* Dot Connection Type Selector */}
+                <div className="mb-2">
+                  <div className="text-xs text-slate-400 mb-1.5">{t('dot_connection')}</div>
+                  <div className="flex gap-1">
+                    {['bridge', 'ring'].map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setDotConnection(type)}
+                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                          dotConnection === type
+                            ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
+                            : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
+                        }`}
+                      >
+                        {t(`dot_connection_${type}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {!autoRepeat && (
                   <>
                     <Slider label={t('text_arc_angle')} value={textArcAngle} onChange={setTextArcAngle} min={60} max={360} step={10} />
@@ -796,6 +818,7 @@ const App = () => {
                   materialColor={materialColor}
                   groupRef={groupRef}
                   autoRepeat={autoRepeat}
+                  dotConnection={dotConnection}
                 />
               )}
             </group>

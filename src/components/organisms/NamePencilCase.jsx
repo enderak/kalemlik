@@ -119,6 +119,7 @@ const NamePencilCase = ({
   materialColor = '#a8a29e',
   groupRef,
   autoRepeat = true,
+  dotConnection = 'ring', // 'bridge' or 'ring'
 }) => {
   const outerR = outerDiameter / 2;
   const innerR = Math.max(1, outerR - wallThickness);
@@ -211,10 +212,23 @@ const NamePencilCase = ({
     // Generate flat shapes from text using three.js font
     const shapes = font.generateShapes(renderedText, fontSize);
     
-    // Auto-connect floating dots/accents (for Turkish characters like İ, Ö, Ü, Ğ)
-    // Instead of modifying existing curve points (which corrupts shared vector references),
-    // we generate a new bridge shape (rectangle) in 2D space to physically link each dot
-    // to the main body of the letter.
+    // Calculate a stable scale factor using a reference capital letter 'E'
+    // instead of the whole text. This prevents letters with accents/dots (like 'İ')
+    // from bloating the bounding box height and shrinking the other letters.
+    const refShapes = font.generateShapes('E', fontSize);
+    const refGeom = new THREE.ExtrudeGeometry(refShapes, {
+      depth: wallThickness,
+      bevelEnabled: false,
+    });
+    refGeom.computeBoundingBox();
+    const refHeight = refGeom.boundingBox.max.y - refGeom.boundingBox.min.y;
+    const refBaseline = refGeom.boundingBox.min.y; // Standard font baseline offset
+    refGeom.dispose();
+
+    const targetHeight = letterHeight + 2.0;
+    const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
+
+    // Handle floating dots/accents (for Turkish characters like İ, Ö, Ü, Ğ)
     const bridges = [];
     shapes.forEach(shape => {
       const points = shape.getPoints();
@@ -235,29 +249,63 @@ const NamePencilCase = ({
       const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
       
       if (isDot) {
-        const centerX = (minX + maxX) / 2;
-        // Make the bridge width 45% of the dot width (a clean vertical connector)
-        const bridgeW = (maxX - minX) * 0.45;
-        const bridgeBottom = fontSize * 0.70; // Connects deep into the letter body (cap-height is ~0.76)
-        const bridgeTop = minY + 2.0; // Enters 2mm into the dot
+        if (dotConnection === 'bridge') {
+          // Mode 1: Connect with a vertical bridge
+          const centerX = (minX + maxX) / 2;
+          const bridgeW = (maxX - minX) * 0.45;
+          const bridgeBottom = fontSize * 0.70;
+          const bridgeTop = minY + 2.0;
 
-        if (bridgeTop > bridgeBottom) {
-          const bridge = new THREE.Shape();
-          const x0 = centerX - bridgeW / 2;
-          const x1 = centerX + bridgeW / 2;
+          if (bridgeTop > bridgeBottom) {
+            const bridge = new THREE.Shape();
+            const x0 = centerX - bridgeW / 2;
+            const x1 = centerX + bridgeW / 2;
+            
+            bridge.moveTo(x0, bridgeBottom);
+            bridge.lineTo(x1, bridgeBottom);
+            bridge.lineTo(x1, bridgeTop);
+            bridge.lineTo(x0, bridgeTop);
+            bridge.closePath();
+            
+            bridges.push(bridge);
+          }
+        } else {
+          // Mode 2: Integrate into Ring.
+          // Shift the dot shape Y coordinates downwards so that the dot is centered 
+          // on the top ring's Y center, merging them directly.
+          // We use a Set to track processed Vector2 references to prevent duplicate translations 
+          // (which causes spiky coordinate distortions).
+          const targetCenterY = letterHeight + topRingHeight / 2;
+          const currentCenterY = ((minY + maxY) / 2 - refBaseline); // relative to baseline (before scaling)
+          const shiftY = currentCenterY * scaleFactor - targetCenterY;
           
-          bridge.moveTo(x0, bridgeBottom);
-          bridge.lineTo(x1, bridgeBottom);
-          bridge.lineTo(x1, bridgeTop);
-          bridge.lineTo(x0, bridgeTop);
-          bridge.closePath();
-          
-          bridges.push(bridge);
+          if (shiftY > 0) {
+            const deltaY = shiftY / scaleFactor;
+            const translatedVectors = new Set();
+            const shiftVector = (v) => {
+              if (v && !translatedVectors.has(v)) {
+                v.y -= deltaY;
+                translatedVectors.add(v);
+              }
+            };
+            
+            shape.curves.forEach(curve => {
+              shiftVector(curve.v1);
+              shiftVector(curve.v2);
+              shiftVector(curve.v3);
+              shiftVector(curve.v4);
+              shiftVector(curve.p1);
+              shiftVector(curve.p2);
+            });
+            shiftVector(shape.currentPoint);
+          }
         }
       }
     });
-    // Add all bridge shapes to the shapes array so they get extruded and wrapped together
-    shapes.push(...bridges);
+
+    if (dotConnection === 'bridge') {
+      shapes.push(...bridges);
+    }
 
     // Extrude flat shapes to get 3D geometry
     let geom = new THREE.ExtrudeGeometry(shapes, {
@@ -269,22 +317,6 @@ const NamePencilCase = ({
     // Subdivide the geometry to increase vertex density.
     // This allows the cap faces to bend smoothly around the cylinder.
     geom = subdivideGeometry(geom, 2);
-
-    // Calculate a stable scale factor using a reference capital letter 'E'
-    // instead of the whole text. This prevents letters with accents/dots (like 'İ')
-    // from bloating the bounding box height and shrinking the other letters.
-    const refShapes = font.generateShapes('E', fontSize);
-    const refGeom = new THREE.ExtrudeGeometry(refShapes, {
-      depth: wallThickness,
-      bevelEnabled: false,
-    });
-    refGeom.computeBoundingBox();
-    const refHeight = refGeom.boundingBox.max.y - refGeom.boundingBox.min.y;
-    const refBaseline = refGeom.boundingBox.min.y; // Standard font baseline offset
-    refGeom.dispose();
-
-    const targetHeight = letterHeight + 2.0;
-    const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
     
     // Scale the geometry in X and Y
     geom.scale(scaleFactor, scaleFactor, 1);
@@ -371,7 +403,7 @@ const NamePencilCase = ({
     if (normAttr) normAttr.needsUpdate = true;
 
     return geom;
-  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight, baseHeight]);
+  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight, baseHeight, dotConnection]);
 
   // 5. Vertical Grate Bars (distributed in the remaining angle)
   const verticalBarComponents = useMemo(() => {

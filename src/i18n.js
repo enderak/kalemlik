@@ -81,6 +81,9 @@ const resources = {
       "preset_size_slim": "Klasik İnce (5x21 cm)",
       "preset_size_wide": "Geniş (12x20 cm)",
       "preset_size_compact": "Kompakt (8x10 cm)",
+      "dot_connection": "Nokta Bağlantı Tipi",
+      "dot_connection_bridge": "Köprü İle Bağla",
+      "dot_connection_ring": "Üst Halkaya Entegre Et",
     }
   },
   EN: {
@@ -162,6 +165,9 @@ const resources = {
       "preset_size_slim": "Classic Slim (5x21 cm)",
       "preset_size_wide": "Wide Desktop (12x20 cm)",
       "preset_size_compact": "Compact (8x10 cm)",
+      "dot_connection": "Dot Connection Type",
+      "dot_connection_bridge": "Connect with Bridge",
+      "dot_connection_ring": "Integrate into Ring",
     }
   },
 };
