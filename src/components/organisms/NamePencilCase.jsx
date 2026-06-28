@@ -263,6 +263,22 @@ const NamePencilCase = ({
       }
     });
 
+    // Calculate a stable scale factor using a reference capital letter 'E'
+    // instead of the whole text. This prevents letters with accents/dots (like 'İ')
+    // from bloating the bounding box height and shrinking the other letters.
+    const refShapes = font.generateShapes('E', fontSize);
+    const refGeom = new THREE.ExtrudeGeometry(refShapes, {
+      depth: wallThickness,
+      bevelEnabled: false,
+    });
+    refGeom.computeBoundingBox();
+    const refHeight = refGeom.boundingBox.max.y - refGeom.boundingBox.min.y;
+    const refBaseline = refGeom.boundingBox.min.y; // Standard font baseline offset
+    refGeom.dispose();
+
+    const targetHeight = letterHeight + 2.0;
+    const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
+
     // Create bridges in 2D space if in bridge mode
     const bridges = [];
     if (dotConnection === 'bridge') {
@@ -289,6 +305,99 @@ const NamePencilCase = ({
       shapes.push(...bridges);
     }
 
+    // If 'ring' mode is active, modify the 2D shapes of dotted letters' bodies (before extrusion)
+    // to clamp both their outer boundaries and their inner holes.
+    // This solves geometric distortion on letters with holes like 'Ö' and 'Ğ'.
+    if (dotConnection === 'ring') {
+      shapes.forEach(shape => {
+        const bounds = getShapeBoundsFromCurves(shape);
+        const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
+        const centerX = (bounds.minX + bounds.maxX) / 2;
+        
+        if (isDot) {
+          // Translate the dot shape Y coordinates downwards so that the dot is centered on the top ring.
+          const targetCenterY = letterHeight + topRingHeight / 2;
+          const currentCenterY = ((bounds.minY + bounds.maxY) / 2 - refBaseline) * scaleFactor;
+          const shiftY = currentCenterY - targetCenterY;
+          
+          if (shiftY > 0) {
+            const deltaY = shiftY / scaleFactor;
+            const translatedVectors = new Set();
+            const shiftVector = (v) => {
+              if (v && !translatedVectors.has(v)) {
+                v.y -= deltaY;
+                translatedVectors.add(v);
+              }
+            };
+            
+            shape.curves.forEach(curve => {
+              shiftVector(curve.v0);
+              shiftVector(curve.v1);
+              shiftVector(curve.v2);
+              shiftVector(curve.v3);
+              shiftVector(curve.v4);
+              shiftVector(curve.p1);
+              shiftVector(curve.p2);
+            });
+            shiftVector(shape.currentPoint);
+          }
+        } else {
+          // Check if this is a dotted letter's main body
+          const matchingDot = dots.find(dot => Math.abs(((dot.minX + dot.maxX) / 2) - centerX) < fontSize * 0.4);
+          
+          if (matchingDot) {
+            // Calculate target Y to leave exactly a 3.5mm gap below the shifted dot's bottom
+            const dotMinY_scaled = matchingDot.minY * scaleFactor;
+            const dotMaxY_scaled = matchingDot.maxY * scaleFactor;
+            const targetCenterY = letterHeight + topRingHeight / 2;
+            const dotH = (dotMaxY_scaled - dotMinY_scaled);
+            const dotBottomY = targetCenterY - dotH / 2;
+            
+            const targetMaxY = dotBottomY - 3.5;
+            const clampY = targetMaxY / scaleFactor + refBaseline;
+            
+            const clampedVectors = new Set();
+            const clampVector = (v) => {
+              if (v && !clampedVectors.has(v)) {
+                if (v.y > clampY) {
+                  v.y = clampY;
+                }
+                clampedVectors.add(v);
+              }
+            };
+            
+            // Clamp outer shape outline curves
+            shape.curves.forEach(curve => {
+              clampVector(curve.v0);
+              clampVector(curve.v1);
+              clampVector(curve.v2);
+              clampVector(curve.v3);
+              clampVector(curve.v4);
+              clampVector(curve.p1);
+              clampVector(curve.p2);
+            });
+            clampVector(shape.currentPoint);
+
+            // Clamp inner hole curves as well! (Crucial for 'Ö' and 'Ğ')
+            if (shape.holes) {
+              shape.holes.forEach(hole => {
+                hole.curves.forEach(curve => {
+                  clampVector(curve.v0);
+                  clampVector(curve.v1);
+                  clampVector(curve.v2);
+                  clampVector(curve.v3);
+                  clampVector(curve.v4);
+                  clampVector(curve.p1);
+                  clampVector(curve.p2);
+                });
+                clampVector(hole.currentPoint);
+              });
+            }
+          }
+        }
+      });
+    }
+
     // Extrude flat shapes to get 3D geometry
     let geom = new THREE.ExtrudeGeometry(shapes, {
       depth: wallThickness,
@@ -299,79 +408,11 @@ const NamePencilCase = ({
     // Subdivide the geometry to increase vertex density.
     // This allows the cap faces to bend smoothly around the cylinder.
     geom = subdivideGeometry(geom, 2);
-
-    // Calculate a stable scale factor using a reference capital letter 'E'
-    // instead of the whole text. This prevents letters with accents/dots (like 'İ')
-    // from bloating the bounding box height and shrinking the other letters.
-    const refShapes = font.generateShapes('E', fontSize);
-    const refGeom = new THREE.ExtrudeGeometry(refShapes, {
-      depth: wallThickness,
-      bevelEnabled: false,
-    });
-    refGeom.computeBoundingBox();
-    const refHeight = refGeom.boundingBox.max.y - refGeom.boundingBox.min.y;
-    const refBaseline = refGeom.boundingBox.min.y; // Standard font baseline offset
-    refGeom.dispose();
-
-    const targetHeight = letterHeight + 2.0;
-    const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
     
     // Scale the geometry in X and Y
     geom.scale(scaleFactor, scaleFactor, 1);
-
-    // If 'ring' mode is active, modify the final 3D geometry vertices (before wrapping)
-    // to shift dots down and clamp the letter bodies to create a clean 3.5mm gap.
-    // This completely avoids Three.js 2D path caching and shared-reference coordinate corruption.
-    if (dotConnection === 'ring') {
-      const posAttr = geom.attributes.position;
-      
-      for (let i = 0; i < posAttr.count; i++) {
-        const x = posAttr.getX(i);
-        const y = posAttr.getY(i);
-        
-        // Check if this vertex falls within the horizontal range of any dot
-        for (const dot of dots) {
-          const dotMinX = dot.minX * scaleFactor;
-          const dotMaxX = dot.maxX * scaleFactor;
-          
-          // Add a small 0.5mm tolerance on the sides to catch all outline vertices
-          if (x >= dotMinX - 0.5 && x <= dotMaxX + 0.5) {
-            const dotMinY = dot.minY * scaleFactor;
-            const dotMaxY = dot.maxY * scaleFactor;
-            
-            if (y >= dotMinY - 1.0) {
-              // This is a vertex of the dot shape itself!
-              // Shift the dot Y coordinates downwards so that the dot is centered on the top ring.
-              const targetCenterY = letterHeight + topRingHeight / 2;
-              const currentCenterY = ((dot.minY + dot.maxY) / 2 - refBaseline) * scaleFactor;
-              const shiftY = currentCenterY - targetCenterY;
-              
-              if (shiftY > 0) {
-                posAttr.setY(i, y - shiftY);
-              }
-            } else {
-              // This is a vertex of the dotted letter's main body!
-              // Clamp its Y coordinate to create exactly 3.5mm gap below the bottom of the dot.
-              // The dot's shifted bottom Y position will be:
-              const targetCenterY = letterHeight + topRingHeight / 2;
-              const dotH = (dotMaxY - dotMinY);
-              const dotBottomY = targetCenterY - dotH / 2;
-              
-              // We target exactly a 3.5mm gap between the dot's bottom and the stem's top
-              const targetMaxY = dotBottomY - 3.5;
-              
-              if (y > targetMaxY) {
-                posAttr.setY(i, targetMaxY);
-              }
-            }
-            break; // processed for this dot
-          }
-        }
-      }
-      posAttr.needsUpdate = true;
-    }
     
-    // Compute bounding box after vertex modifications
+    // Compute bounding box after scaling
     geom.computeBoundingBox();
     let box = geom.boundingBox;
     let width = box.max.x - box.min.x;
