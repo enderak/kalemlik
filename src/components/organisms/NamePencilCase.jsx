@@ -18,7 +18,7 @@ function makeHollowCylinderGeometry(outerRadius, innerRadius, height, segments) 
   const geom = new THREE.ExtrudeGeometry(shape, {
     depth: height,
     bevelEnabled: false,
-    curveSegments: Math.max(4, segments / 4),
+    curveSegments: 64, // Smooth circle with 64 segments
   });
   geom.rotateX(-Math.PI / 2); // align with Y-axis
   return geom;
@@ -215,7 +215,7 @@ const NamePencilCase = ({
     let geom = new THREE.ExtrudeGeometry(shapes, {
       depth: wallThickness,
       bevelEnabled: false,
-      curveSegments: 12,
+      curveSegments: 32, // Smooth font outlines
     });
 
     // Subdivide the geometry to increase vertex density.

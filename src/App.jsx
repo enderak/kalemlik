@@ -132,9 +132,19 @@ const App = () => {
     const origScale = groupRef.current.scale.clone();
     const origRot = groupRef.current.rotation.clone();
 
+    // Reset local scale to 1.0 and rotate 90 degrees around X so Y-up maps to Z-up for 3D printers
     groupRef.current.scale.set(1, 1, 1);
-    groupRef.current.rotation.set(0, 0, 0);
-    groupRef.current.updateMatrixWorld(true);
+    groupRef.current.rotation.set(Math.PI / 2, 0, 0);
+
+    const parent = groupRef.current.parent;
+    let origParentScale = null;
+    if (parent) {
+      origParentScale = parent.scale.clone();
+      parent.scale.set(1, 1, 1);
+      parent.updateMatrixWorld(true); // Propagate the scale down to all meshes
+    } else {
+      groupRef.current.updateMatrixWorld(true);
+    }
 
     const result = exporter.parse(groupRef.current, { binary: true });
     const blob = new Blob([result], { type: 'application/octet-stream' });
@@ -149,9 +159,16 @@ const App = () => {
     
     downloadBlob(blob, filename);
 
+    // Restore original local scale and rotation
     groupRef.current.scale.copy(origScale);
     groupRef.current.rotation.copy(origRot);
-    groupRef.current.updateMatrixWorld(true);
+
+    if (parent && origParentScale) {
+      parent.scale.copy(origParentScale);
+      parent.updateMatrixWorld(true);
+    } else {
+      groupRef.current.updateMatrixWorld(true);
+    }
   };
 
   const toggleLang = () => {
