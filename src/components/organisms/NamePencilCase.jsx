@@ -38,7 +38,7 @@ const NamePencilCase = ({
     return g;
   }, [outerR, baseExtension, baseHeight]);
 
-  // 2. Top Ring Geometry (Outer Cylinder minus Inner Cylinder using CSG)
+  // 2. Top Ring Geometry (CSG subtraction)
   const topRingOuterGeom = useMemo(() => {
     const g = new THREE.CylinderGeometry(outerR, outerR, topRingHeight, SEG);
     g.translate(0, height - topRingHeight / 2, 0);
@@ -67,62 +67,35 @@ const NamePencilCase = ({
   const centralColumnInnerGeom = useMemo(() => {
     if (!hasCentralColumn) return null;
     const r = Math.max(1, centralColumnDiameter / 2 - wallThickness);
-    const h = height - baseHeight + 2; // extended for clean cut
+    const h = height - baseHeight + 2;
     const g = new THREE.CylinderGeometry(r, r, h, SEG);
     g.translate(0, baseHeight + (height - baseHeight) / 2, 0);
     g.computeVertexNormals();
     return g;
   }, [hasCentralColumn, centralColumnDiameter, wallThickness, height, baseHeight]);
 
-  // 4. Letters (positioned around a circle)
-  const letterComponents = useMemo(() => {
-    if (!text || text.trim().length === 0) return [];
-    const chars = text.split('');
-    const N = chars.length;
-    const arcAngleRad = (textArcAngle * Math.PI) / 180;
-    const startAngle = Math.PI / 2 - arcAngleRad / 2;
-    const R_mid = outerR - wallThickness / 2;
-    const posY = baseHeight + letterHeight / 2;
-    const fontSize = letterHeight + 2; // 2mm overlap total (1mm top, 1mm bottom)
+  // 4. Wrapped Text Mesh
+  const R_mid = outerR - wallThickness / 2;
+  const posY = baseHeight + letterHeight / 2;
+  const fontSize = letterHeight + 2; // vertical overlap
 
-    return chars.map((char, i) => {
-      let theta = Math.PI / 2;
-      if (N > 1) {
-        theta = startAngle + i * (arcAngleRad / (N - 1));
-      }
-      const px = R_mid * Math.cos(theta);
-      const pz = R_mid * Math.sin(theta);
-      const rotY = Math.PI / 2 - theta;
+  // Estimate text width and occupied angle for bars calculation
+  const occupiedAngleRad = useMemo(() => {
+    if (!text || text.trim().length === 0) return 0;
+    // Estimate width based on character count and height
+    const approxWidth = text.length * letterHeight * 0.65;
+    const maxAngleRad = (textArcAngle * Math.PI) / 180;
+    return Math.min(maxAngleRad, approxWidth / R_mid);
+  }, [text, textArcAngle, letterHeight, R_mid]);
 
-      return (
-        <group key={`char-${i}-${char}`} position={[px, posY, pz]} rotation={[0, rotY, 0]}>
-          <Text3D
-            font={fontPath}
-            size={fontSize}
-            height={wallThickness}
-            curveSegments={6}
-            bevelEnabled={false}
-            onUpdate={(self) => {
-              self.geometry.center();
-            }}
-          >
-            {char}
-            <meshStandardMaterial color={materialColor} roughness={0.85} />
-          </Text3D>
-        </group>
-      );
-    });
-  }, [text, textArcAngle, outerR, wallThickness, baseHeight, letterHeight, fontPath, materialColor]);
-
-  // 5. Vertical Grate Bars (filling the remaining arc)
+  // 5. Vertical Grate Bars (distributed in the remaining angle)
   const verticalBarComponents = useMemo(() => {
     if (numVerticalBars <= 0) return [];
-    const arcAngleRad = (textArcAngle * Math.PI) / 180;
-    const startAngle = Math.PI / 2 + arcAngleRad / 2;
-    const endAngle = Math.PI / 2 - arcAngleRad / 2 + Math.PI * 2;
-    const R_mid = outerR - wallThickness / 2;
-    const posY = baseHeight + letterHeight / 2;
-    const barHeight = letterHeight + 2; // 2mm overlap total
+    
+    // Calculate remaining angle limits
+    const startAngle = Math.PI / 2 + occupiedAngleRad / 2 + 0.15; // 0.15 rad safety gap
+    const endAngle = Math.PI / 2 - occupiedAngleRad / 2 + Math.PI * 2 - 0.15;
+    const barHeight = letterHeight + 2;
 
     const g = new THREE.CylinderGeometry(wallThickness / 2, wallThickness / 2, barHeight, 12);
     g.computeVertexNormals();
@@ -140,7 +113,7 @@ const NamePencilCase = ({
       );
     }
     return bars;
-  }, [numVerticalBars, textArcAngle, outerR, wallThickness, baseHeight, letterHeight, materialColor]);
+  }, [numVerticalBars, occupiedAngleRad, R_mid, posY, letterHeight, wallThickness, materialColor]);
 
   // 6. Dividers / Connector Spokes
   const dividerComponents = useMemo(() => {
@@ -150,21 +123,19 @@ const NamePencilCase = ({
     const L = R_out_in - R_cent_out;
     if (L <= 0) return [];
 
-    const R_mid = R_cent_out + L / 2;
+    const R_spoke_mid = R_cent_out + L / 2;
     const spokes = [];
-
-    const heightSpoke = dividerMode === 'support' ? 6 : letterHeight + 2; // 2mm overlap total
+    const heightSpoke = dividerMode === 'support' ? 6 : letterHeight + 2;
 
     for (let k = 0; k < numDividers; k++) {
       const phi = k * ((Math.PI * 2) / numDividers);
-      const px = R_mid * Math.cos(phi);
-      const pz = R_mid * Math.sin(phi);
+      const px = R_spoke_mid * Math.cos(phi);
+      const pz = R_spoke_mid * Math.sin(phi);
 
       const g = new THREE.BoxGeometry(L, heightSpoke, wallThickness);
       g.computeVertexNormals();
 
       if (dividerMode === 'support') {
-        // Bottom support spoke (just above base)
         const yBottom = baseHeight + 3;
         spokes.push(
           <mesh
@@ -179,7 +150,6 @@ const NamePencilCase = ({
           </mesh>
         );
 
-        // Top support spoke (just below top ring)
         const yTop = height - topRingHeight - 3;
         spokes.push(
           <mesh
@@ -194,7 +164,6 @@ const NamePencilCase = ({
           </mesh>
         );
       } else {
-        // Full height divider spoke
         const yCenter = baseHeight + letterHeight / 2;
         spokes.push(
           <mesh
@@ -221,6 +190,51 @@ const NamePencilCase = ({
     });
   }, [materialColor]);
 
+  // Handler to center, scale and wrap the text geometry around the cylinder
+  const handleTextGeometryUpdate = (self) => {
+    const geom = self.geometry;
+    if (!geom) return;
+
+    // 1. Center the flat text geometry
+    geom.center();
+    geom.computeBoundingBox();
+    
+    // 2. Measure the original flat width
+    const box = geom.boundingBox;
+    const width = box.max.x - box.min.x;
+    if (width <= 0) return;
+
+    // 3. Compress X scale if it exceeds max allowed angle
+    const maxAngleRad = (textArcAngle * Math.PI) / 180;
+    const W_max = R_mid * maxAngleRad;
+    if (width > W_max) {
+      const scaleX = W_max / width;
+      geom.scale(scaleX, 1, 1);
+      geom.computeBoundingBox();
+    }
+
+    // 4. Wrap each vertex around the cylinder of radius R_mid
+    const posAttr = geom.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const x = posAttr.getX(i);
+      const y = posAttr.getY(i);
+      const z = posAttr.getZ(i);
+
+      // Angle is offset to face front (Math.PI / 2 is the front +Z axis)
+      const theta = Math.PI / 2 + x / R_mid;
+      
+      // Cylindrical coordinates: X and Z bend along the circle, Z displacement acts as radial extrusion
+      const newX = (R_mid + z) * Math.cos(theta);
+      const newZ = (R_mid + z) * Math.sin(theta);
+      const newY = y;
+
+      posAttr.setXYZ(i, newX, newY, newZ);
+    }
+    
+    posAttr.needsUpdate = true;
+    geom.computeVertexNormals();
+  };
+
   return (
     <group ref={groupRef} name="NamePencilCase">
       {/* 1. Base Plate */}
@@ -228,7 +242,7 @@ const NamePencilCase = ({
         <mesh geometry={baseGeom} name="NameBase" material={mat} receiveShadow castShadow />
       )}
 
-      {/* 2. Top Ring (using CSG Subtraction) */}
+      {/* 2. Top Ring */}
       <mesh name="NameTopRing" material={mat} receiveShadow castShadow>
         <Geometry>
           <Base geometry={topRingOuterGeom} />
@@ -236,7 +250,7 @@ const NamePencilCase = ({
         </Geometry>
       </mesh>
 
-      {/* 3. Central Column (using CSG Subtraction) */}
+      {/* 3. Central Column */}
       {hasCentralColumn && centralColumnOuterGeom && centralColumnInnerGeom && (
         <mesh name="NameCentralColumn" material={mat} receiveShadow castShadow>
           <Geometry>
@@ -246,8 +260,22 @@ const NamePencilCase = ({
         </mesh>
       )}
 
-      {/* 4. Custom Text Letters */}
-      {letterComponents}
+      {/* 4. Wrapped Text */}
+      {text && text.trim().length > 0 && (
+        <mesh position={[0, posY, 0]} castShadow receiveShadow>
+          <Text3D
+            font={fontPath}
+            size={fontSize}
+            height={wallThickness}
+            curveSegments={12} // smooth curves
+            bevelEnabled={false}
+            onUpdate={handleTextGeometryUpdate}
+          >
+            {text}
+            <meshStandardMaterial color={materialColor} roughness={0.85} />
+          </Text3D>
+        </mesh>
+      )}
 
       {/* 5. Vertical Grate Bars */}
       {verticalBarComponents}
