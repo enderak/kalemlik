@@ -218,7 +218,7 @@ function makeCylinderBrickGeoms(outerR, height, brickDepth, brickW, brickH, gap)
     for (let c = 0; c < cols; c++) {
       const a = c * aStep + off;
       const g = new THREE.BoxGeometry(brickW * (outerR / 50), brickH, brickDepth);
-      g.translate(0, y, outerR);
+      g.translate(0, y, outerR + brickDepth / 2);
       const q = new THREE.Quaternion().setFromUnitVectors(
         new THREE.Vector3(0, 0, 1),
         new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
@@ -232,7 +232,6 @@ function makeCylinderBrickGeoms(outerR, height, brickDepth, brickW, brickH, gap)
 
 function makeSquareBrickGeoms(outerSize, wallThick, height, brickDepth, brickW, brickH, gap) {
   const s = outerSize / 2;
-  const wallCenter = s - wallThick / 2;
   const rows = Math.floor(height / (brickH + gap));
   const cols = Math.floor((outerSize - wallThick) / (brickW + gap));
   const bricks = [];
@@ -251,12 +250,12 @@ function makeSquareBrickGeoms(outerSize, wallThick, height, brickDepth, brickW, 
         const g = new THREE.BoxGeometry(brickW, brickH, brickDepth);
         let px, pz;
         if (side.x !== 0) {
-          px = side.x * wallCenter;
+          px = side.x * (s + brickDepth / 2);
           pz = t;
           g.rotateY(side.x > 0 ? Math.PI / 2 : -Math.PI / 2);
         } else {
           px = t;
-          pz = side.z * wallCenter;
+          pz = side.z * (s + brickDepth / 2);
         }
         g.translate(px, y, pz);
         bricks.push(g);
