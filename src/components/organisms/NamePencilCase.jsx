@@ -6,6 +6,83 @@ import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 
 const SEG = 48;
 
+// Helper function to subdivide a geometry's triangles.
+// This increases vertex density so the flat faces bend smoothly around the cylinder without creases.
+function subdivideGeometry(geom, levels = 2) {
+  // Convert to non-indexed geometry so we can easily split individual triangles
+  let currentGeom = geom.index ? geom.toNonIndexed() : geom.clone();
+
+  for (let l = 0; l < levels; l++) {
+    const posAttr = currentGeom.attributes.position;
+    const normAttr = currentGeom.attributes.normal;
+    const uvAttr = currentGeom.attributes.uv;
+
+    const count = posAttr.count;
+    const newPos = [];
+    const newNorm = [];
+    const newUv = [];
+
+    for (let i = 0; i < count; i += 3) {
+      // Get the 3 vertices of the current triangle
+      const p0 = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
+      const p1 = new THREE.Vector3(posAttr.getX(i + 1), posAttr.getY(i + 1), posAttr.getZ(i + 1));
+      const p2 = new THREE.Vector3(posAttr.getX(i + 2), posAttr.getY(i + 2), posAttr.getZ(i + 2));
+
+      const n0 = new THREE.Vector3(normAttr.getX(i), normAttr.getY(i), normAttr.getZ(i));
+      const n1 = new THREE.Vector3(normAttr.getX(i + 1), normAttr.getY(i + 1), normAttr.getZ(i + 1));
+      const n2 = new THREE.Vector3(normAttr.getX(i + 2), normAttr.getY(i + 2), normAttr.getZ(i + 2));
+
+      let u0, u1, u2;
+      if (uvAttr) {
+        u0 = new THREE.Vector2(uvAttr.getX(i), uvAttr.getY(i));
+        u1 = new THREE.Vector2(uvAttr.getX(i + 1), uvAttr.getY(i + 1));
+        u2 = new THREE.Vector2(uvAttr.getX(i + 2), uvAttr.getY(i + 2));
+      }
+
+      // Calculate edge midpoints
+      const p01 = new THREE.Vector3().addVectors(p0, p1).multiplyScalar(0.5);
+      const p12 = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+      const p20 = new THREE.Vector3().addVectors(p2, p0).multiplyScalar(0.5);
+
+      const n01 = new THREE.Vector3().addVectors(n0, n1).normalize();
+      const n12 = new THREE.Vector3().addVectors(n1, n2).normalize();
+      const n20 = new THREE.Vector3().addVectors(n2, n0).normalize();
+
+      let u01, u12, u20;
+      if (uvAttr) {
+        u01 = new THREE.Vector2().addVectors(u0, u1).multiplyScalar(0.5);
+        u12 = new THREE.Vector2().addVectors(u1, u2).multiplyScalar(0.5);
+        u20 = new THREE.Vector2().addVectors(u2, u0).multiplyScalar(0.5);
+      }
+
+      // Helper to push a new subdivided triangle
+      const addTriangle = (va, vb, vc, na, nb, nc, ua, ub, uc) => {
+        newPos.push(va.x, va.y, va.z, vb.x, vb.y, vb.z, vc.x, vc.y, vc.z);
+        newNorm.push(na.x, na.y, na.z, nb.x, nb.y, nb.z, nc.x, nc.y, nc.z);
+        if (uvAttr) {
+          newUv.push(ua.x, ua.y, ub.x, ub.y, uc.x, uc.y);
+        }
+      };
+
+      // Split 1 triangle into 4 smaller triangles
+      addTriangle(p0, p01, p20, n0, n01, n20, u0, u01, u20);
+      addTriangle(p1, p12, p01, n1, n12, n01, u1, u12, u01);
+      addTriangle(p2, p20, p12, n2, n20, n12, u2, u20, u12);
+      addTriangle(p01, p12, p20, n01, n12, n20, u01, u12, u20);
+    }
+
+    const nextGeom = new THREE.BufferGeometry();
+    nextGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(newPos), 3));
+    nextGeom.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(newNorm), 3));
+    if (uvAttr) {
+      nextGeom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(newUv), 2));
+    }
+    currentGeom = nextGeom;
+  }
+
+  return currentGeom;
+}
+
 const NamePencilCase = ({
   text = 'ENDER',
   fontName = 'Plus_Jakarta_Sans_Bold.json',
@@ -83,10 +160,10 @@ const NamePencilCase = ({
   const posY = baseHeight + letterHeight / 2;
   const fontSize = letterHeight; // base font size
 
-  // 4. Repeated text setup
-  const { chars, finalBarsCount, finalOccupiedAngleRad } = useMemo(() => {
+  // Calculate repeated text and final rendering parameters
+  const { renderedText, finalBarsCount, finalOccupiedAngleRad } = useMemo(() => {
     if (!text || text.trim().length === 0) {
-      return { chars: [], finalBarsCount: numVerticalBars, finalOccupiedAngleRad: 0 };
+      return { renderedText: '', finalBarsCount: numVerticalBars, finalOccupiedAngleRad: 0 };
     }
 
     const cleanText = text.trim();
@@ -98,9 +175,9 @@ const NamePencilCase = ({
       const repetitions = Math.max(1, Math.round(circumference / approxSingleWidth));
       
       // Build repeated string with double space separation
-      const repeatedText = Array(repetitions).fill(cleanText).join('  ') + '  ';
+      const repeated = Array(repetitions).fill(cleanText).join('  ') + '  ';
       return {
-        chars: repeatedText.split(''),
+        renderedText: repeated,
         finalBarsCount: 0,
         finalOccupiedAngleRad: Math.PI * 2,
       };
@@ -109,7 +186,7 @@ const NamePencilCase = ({
       const maxAngleRad = (textArcAngle * Math.PI) / 180;
       const occupied = Math.min(maxAngleRad, approxWidth / R_mid);
       return {
-        chars: cleanText.split(''),
+        renderedText: cleanText,
         finalBarsCount: numVerticalBars,
         finalOccupiedAngleRad: occupied,
       };
@@ -125,71 +202,86 @@ const NamePencilCase = ({
     });
   }, [materialColor]);
 
-  // 5. Generate Individual Character Geometries (centered, scaled, and placed)
-  const letterComponents = useMemo(() => {
-    if (chars.length === 0) return [];
-    
-    const N = chars.length;
-    const targetH = letterHeight + 2.0;
+  // 4. Wrapped & Subdivided Text Geometry
+  const textGeom = useMemo(() => {
+    if (!renderedText || renderedText.trim().length === 0) return null;
 
-    // Pre-generate geometries for unique characters to avoid duplicate work
-    const uniqueChars = Array.from(new Set(chars.filter(c => c !== ' ')));
-    const charGeoms = {};
+    // Generate flat shapes from text using three.js font
+    const shapes = font.generateShapes(renderedText, fontSize);
     
-    uniqueChars.forEach(char => {
-      const shapes = font.generateShapes(char, fontSize);
-      const geom = new THREE.ExtrudeGeometry(shapes, {
-        depth: wallThickness,
-        bevelEnabled: false,
-        curveSegments: 8,
-      });
-      
-      geom.center();
+    // Extrude flat shapes to get 3D geometry
+    let geom = new THREE.ExtrudeGeometry(shapes, {
+      depth: wallThickness,
+      bevelEnabled: false,
+      curveSegments: 12,
+    });
+
+    // Subdivide the geometry to increase vertex density.
+    // This allows the cap faces to bend smoothly around the cylinder.
+    geom = subdivideGeometry(geom, 2);
+
+    // Center the geometry (positions origin at geometric center)
+    geom.center();
+    geom.computeBoundingBox();
+
+    let box = geom.boundingBox;
+    let width = box.max.x - box.min.x;
+    let currentHeight = box.max.y - box.min.y;
+    if (width <= 0 || currentHeight <= 0) return geom;
+
+    // Scale X and Y uniformly first to make the visual height of capital letters
+    // exactly equal to targetHeight, preserving font proportions and ensuring 1mm overlap
+    // at both the top ring and the bottom base.
+    const targetHeight = letterHeight + 2.0;
+    const scaleFactor = targetHeight / currentHeight;
+    geom.scale(scaleFactor, scaleFactor, 1);
+    
+    // Recompute bounding box and width
+    geom.computeBoundingBox();
+    box = geom.boundingBox;
+    width = box.max.x - box.min.x;
+
+    const circumference = Math.PI * 2 * R_mid;
+
+    if (autoRepeat) {
+      // Scale X to stretch/compress to exactly fit the full circumference
+      geom.scale(circumference / width, 1, 1);
       geom.computeBoundingBox();
-      const currentH = geom.boundingBox.max.y - geom.boundingBox.min.y;
-      if (currentH > 0) {
-        const scaleFactor = targetH / currentH;
-        // Scale uniformly in X and Y to preserve letter aspect ratio (no vertical stretching)
-        geom.scale(scaleFactor, scaleFactor, 1);
+    } else {
+      // Compress X scale if it exceeds max allowed angle
+      const maxAngleRad = (textArcAngle * Math.PI) / 180;
+      const W_max = R_mid * maxAngleRad;
+      if (width > W_max) {
+        const scaleX = W_max / width;
+        geom.scale(scaleX, 1, 1);
+        geom.computeBoundingBox();
       }
-      geom.computeVertexNormals();
-      charGeoms[char] = geom;
-    });
+    }
 
-    // Position and rotate each character along the cylinder
-    const startAngle = Math.PI / 2;
-    const step = autoRepeat 
-      ? (Math.PI * 2) / N 
-      : N > 1 ? finalOccupiedAngleRad / (N - 1) : 0;
+    // Wrap flat geometry vertices around the cylinder
+    const posAttr = geom.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const x = posAttr.getX(i);
+      const y = posAttr.getY(i);
+      const z = posAttr.getZ(i);
 
-    return chars.map((char, i) => {
-      if (char === ' ') return null;
+      // Angle wraps counter-clockwise: as x increases, theta decreases.
+      const theta = Math.PI / 2 - x / R_mid;
       
-      // Reading order: counter-clockwise wraps around (subtract i * step)
-      const theta = startAngle - i * step;
+      const newX = (R_mid + z) * Math.cos(theta);
+      const newZ = (R_mid + z) * Math.sin(theta);
+      const newY = y;
 
-      const px = R_mid * Math.cos(theta);
-      const pz = R_mid * Math.sin(theta);
-      const rotY = Math.PI / 2 - theta;
+      posAttr.setXYZ(i, newX, newY, newZ);
+    }
+    
+    posAttr.needsUpdate = true;
+    geom.computeVertexNormals();
 
-      const geom = charGeoms[char];
-      if (!geom) return null;
+    return geom;
+  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight]);
 
-      return (
-        <mesh 
-          key={`char-${i}-${char}`} 
-          geometry={geom} 
-          position={[px, posY, pz]} 
-          rotation={[0, rotY, 0]} 
-          material={mat}
-          castShadow 
-          receiveShadow 
-        />
-      );
-    });
-  }, [chars, font, fontSize, wallThickness, R_mid, letterHeight, posY, autoRepeat, finalOccupiedAngleRad, mat]);
-
-  // 6. Vertical Grate Bars (distributed in the remaining angle)
+  // 5. Vertical Grate Bars (distributed in the remaining angle)
   const verticalBarComponents = useMemo(() => {
     if (finalBarsCount <= 0) return [];
     
@@ -215,7 +307,7 @@ const NamePencilCase = ({
     return bars;
   }, [finalBarsCount, finalOccupiedAngleRad, R_mid, posY, letterHeight, wallThickness, materialColor]);
 
-  // 7. Dividers / Connector Spokes
+  // 6. Dividers / Connector Spokes
   const dividerComponents = useMemo(() => {
     if (dividerMode === 'none' || numDividers <= 0) return [];
     const R_cent_out = hasCentralColumn ? centralColumnDiameter / 2 : 0;
@@ -307,8 +399,10 @@ const NamePencilCase = ({
         </mesh>
       )}
 
-      {/* 4. Individual flat characters rotated around cylinder */}
-      {letterComponents}
+      {/* 4. Wrapped & Subdivided Text */}
+      {textGeom && (
+        <mesh geometry={textGeom} position={[0, posY, 0]} material={mat} castShadow receiveShadow />
+      )}
 
       {/* 5. Vertical Grate Bars */}
       {verticalBarComponents}
