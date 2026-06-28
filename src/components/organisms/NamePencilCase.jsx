@@ -258,9 +258,9 @@ const NamePencilCase = ({
 
     // Auto-widen the gap between the two dots of letters like 'Ö' and 'Ü'
     // We scan for pairs of dots that are horizontally and vertically close,
-    // and shift them outwards by 4.5% of font size (~5.5mm).
+    // and shift them outwards by 1.5% of font size (~2.0mm).
     const processedIndices = new Set();
-    const dx = fontSize * 0.045; 
+    const dx = fontSize * 0.015; 
 
     for (let i = 0; i < dotInfo.length; i++) {
       if (processedIndices.has(dotInfo[i].index)) continue;
@@ -339,7 +339,7 @@ const NamePencilCase = ({
       dots.forEach(dot => {
         const centerX = (dot.minX + dot.maxX) / 2;
         const bridgeW = (dot.maxX - dot.minX) * 0.45;
-        const bridgeBottom = fontSize * 0.76;
+        const bridgeBottom = fontSize * 0.76 - 1.5;
         const bridgeTop = dot.minY + 0.5;
 
         if (bridgeTop > bridgeBottom) {
