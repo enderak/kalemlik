@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { Geometry, Base, Subtraction } from '@react-three/csg';
 import { Text3D } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 
 const SEG = 48;
 
@@ -22,8 +23,10 @@ const NamePencilCase = ({
   numDividers = 3,
   materialColor = '#a8a29e',
   groupRef,
-  autoRepeat = true, // Default to true to wrap completely around the cylinder
+  autoRepeat = true,
 }) => {
+  const meshRef = useRef();
+
   const outerR = outerDiameter / 2;
   const innerR = Math.max(1, outerR - wallThickness);
   const letterHeight = height - baseHeight - topRingHeight;
@@ -213,12 +216,20 @@ const NamePencilCase = ({
     });
   }, [materialColor]);
 
-  // Handler to center, scale and wrap the text geometry around the cylinder
-  const handleTextGeometryUpdate = (self) => {
-    const geom = self.geometry;
+  // Continuously verify and wrap the geometry inside the render loop.
+  // This guarantees it updates instantly when text, font, sizes, or radius change.
+  useFrame(() => {
+    if (!meshRef.current) return;
+    const geom = meshRef.current.geometry;
     if (!geom) return;
 
-    // 1. Center the flat text geometry
+    // Unique key representing current configuration state
+    const key = `${renderedText}_${fontName}_${fontSize}_${wallThickness}_${R_mid}_${textArcAngle}_${autoRepeat}`;
+    if (geom.userData.wrapKey === key) return; // already wrapped this geometry state
+
+    geom.userData.wrapKey = key;
+
+    // 1. Center the geometry
     geom.center();
     geom.computeBoundingBox();
     
@@ -230,11 +241,9 @@ const NamePencilCase = ({
     const circumference = Math.PI * 2 * R_mid;
 
     if (autoRepeat) {
-      // For autoRepeat, scale X to stretch/compress to exactly fit the full circumference
       geom.scale(circumference / width, 1, 1);
       geom.computeBoundingBox();
     } else {
-      // Compress X scale if it exceeds max allowed angle
       const maxAngleRad = (textArcAngle * Math.PI) / 180;
       const W_max = R_mid * maxAngleRad;
       if (width > W_max) {
@@ -265,7 +274,7 @@ const NamePencilCase = ({
     
     posAttr.needsUpdate = true;
     geom.computeVertexNormals();
-  };
+  });
 
   return (
     <group ref={groupRef} name="NamePencilCase">
@@ -294,14 +303,13 @@ const NamePencilCase = ({
 
       {/* 4. Wrapped Text */}
       {renderedText && renderedText.trim().length > 0 && (
-        <mesh position={[0, posY, 0]} castShadow receiveShadow>
+        <mesh ref={meshRef} position={[0, posY, 0]} castShadow receiveShadow>
           <Text3D
             font={fontPath}
             size={fontSize}
             height={wallThickness}
             curveSegments={12} // smooth curves
             bevelEnabled={false}
-            onUpdate={handleTextGeometryUpdate}
           >
             {renderedText}
             <meshStandardMaterial color={materialColor} roughness={0.85} />
