@@ -7,7 +7,7 @@ import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 const SEG = 48;
 
 const NamePencilCase = ({
-  text = 'SEMİH',
+  text = 'ENDER',
   fontName = 'Plus_Jakarta_Sans_Bold.json',
   outerDiameter = 100,
   height = 150,
@@ -30,7 +30,7 @@ const NamePencilCase = ({
   const letterHeight = height - baseHeight - topRingHeight;
   const fontPath = `/fonts/${fontName}`;
 
-  // Load the font synchronously using Suspense
+  // Load font synchronously using suspense
   const font = useLoader(FontLoader, fontPath);
 
   // 1. Base Plate Geometry
@@ -83,10 +83,10 @@ const NamePencilCase = ({
   const posY = baseHeight + letterHeight / 2;
   const fontSize = letterHeight; // base font size
 
-  // Calculate repeated text and final rendering parameters
-  const { renderedText, finalBarsCount, finalOccupiedAngleRad } = useMemo(() => {
+  // 4. Repeated text setup
+  const { chars, finalBarsCount, finalOccupiedAngleRad } = useMemo(() => {
     if (!text || text.trim().length === 0) {
-      return { renderedText: '', finalBarsCount: numVerticalBars, finalOccupiedAngleRad: 0 };
+      return { chars: [], finalBarsCount: numVerticalBars, finalOccupiedAngleRad: 0 };
     }
 
     const cleanText = text.trim();
@@ -98,9 +98,9 @@ const NamePencilCase = ({
       const repetitions = Math.max(1, Math.round(circumference / approxSingleWidth));
       
       // Build repeated string with double space separation
-      const repeated = Array(repetitions).fill(cleanText).join('  ') + '  ';
+      const repeatedText = Array(repetitions).fill(cleanText).join('  ') + '  ';
       return {
-        renderedText: repeated,
+        chars: repeatedText.split(''),
         finalBarsCount: 0,
         finalOccupiedAngleRad: Math.PI * 2,
       };
@@ -109,20 +109,93 @@ const NamePencilCase = ({
       const maxAngleRad = (textArcAngle * Math.PI) / 180;
       const occupied = Math.min(maxAngleRad, approxWidth / R_mid);
       return {
-        renderedText: cleanText,
+        chars: cleanText.split(''),
         finalBarsCount: numVerticalBars,
         finalOccupiedAngleRad: occupied,
       };
     }
   }, [text, autoRepeat, letterHeight, R_mid, numVerticalBars, textArcAngle]);
 
-  // 5. Vertical Grate Bars (distributed in the remaining angle)
+  const mat = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: materialColor,
+      roughness: 0.95, // matte finish
+      metalness: 0.1,  // subtle plastic reflection
+      side: THREE.DoubleSide,
+    });
+  }, [materialColor]);
+
+  // 5. Generate Individual Character Geometries (centered, scaled, and placed)
+  const letterComponents = useMemo(() => {
+    if (chars.length === 0) return [];
+    
+    const N = chars.length;
+    const targetH = letterHeight + 2.0;
+
+    // Pre-generate geometries for unique characters to avoid duplicate work
+    const uniqueChars = Array.from(new Set(chars.filter(c => c !== ' ')));
+    const charGeoms = {};
+    
+    uniqueChars.forEach(char => {
+      const shapes = font.generateShapes(char, fontSize);
+      const geom = new THREE.ExtrudeGeometry(shapes, {
+        depth: wallThickness,
+        bevelEnabled: false,
+        curveSegments: 8,
+      });
+      
+      geom.center();
+      geom.computeBoundingBox();
+      const currentH = geom.boundingBox.max.y - geom.boundingBox.min.y;
+      if (currentH > 0) {
+        const scaleFactor = targetH / currentH;
+        // Scale uniformly in X and Y to preserve letter aspect ratio (no vertical stretching)
+        geom.scale(scaleFactor, scaleFactor, 1);
+      }
+      geom.computeVertexNormals();
+      charGeoms[char] = geom;
+    });
+
+    // Position and rotate each character along the cylinder
+    const startAngle = Math.PI / 2;
+    const step = autoRepeat 
+      ? (Math.PI * 2) / N 
+      : N > 1 ? finalOccupiedAngleRad / (N - 1) : 0;
+
+    return chars.map((char, i) => {
+      if (char === ' ') return null;
+      
+      // Reading order: counter-clockwise wraps around (subtract i * step)
+      const theta = startAngle - i * step;
+
+      const px = R_mid * Math.cos(theta);
+      const pz = R_mid * Math.sin(theta);
+      const rotY = Math.PI / 2 - theta;
+
+      const geom = charGeoms[char];
+      if (!geom) return null;
+
+      return (
+        <mesh 
+          key={`char-${i}-${char}`} 
+          geometry={geom} 
+          position={[px, posY, pz]} 
+          rotation={[0, rotY, 0]} 
+          material={mat}
+          castShadow 
+          receiveShadow 
+        />
+      );
+    });
+  }, [chars, font, fontSize, wallThickness, R_mid, letterHeight, posY, autoRepeat, finalOccupiedAngleRad, mat]);
+
+  // 6. Vertical Grate Bars (distributed in the remaining angle)
   const verticalBarComponents = useMemo(() => {
     if (finalBarsCount <= 0) return [];
     
     const startAngle = Math.PI / 2 + finalOccupiedAngleRad / 2 + 0.15;
     const endAngle = Math.PI / 2 - finalOccupiedAngleRad / 2 + Math.PI * 2 - 0.15;
-    const barHeight = letterHeight + 2; // 2mm vertical overlap
+    const barHeight = letterHeight + 2;
 
     const g = new THREE.CylinderGeometry(wallThickness / 2, wallThickness / 2, barHeight, 12);
     g.computeVertexNormals();
@@ -142,7 +215,7 @@ const NamePencilCase = ({
     return bars;
   }, [finalBarsCount, finalOccupiedAngleRad, R_mid, posY, letterHeight, wallThickness, materialColor]);
 
-  // 6. Dividers / Connector Spokes
+  // 7. Dividers / Connector Spokes
   const dividerComponents = useMemo(() => {
     if (dividerMode === 'none' || numDividers <= 0) return [];
     const R_cent_out = hasCentralColumn ? centralColumnDiameter / 2 : 0;
@@ -209,90 +282,6 @@ const NamePencilCase = ({
     return spokes;
   }, [dividerMode, numDividers, hasCentralColumn, centralColumnDiameter, outerR, wallThickness, baseHeight, letterHeight, height, topRingHeight, materialColor]);
 
-  const mat = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: materialColor,
-      roughness: 0.95, // matte finish to hide triangulation facets
-      metalness: 0.1,  // subtle plastic reflection
-      side: THREE.DoubleSide,
-    });
-  }, [materialColor]);
-
-  // 4. Wrapped Text Geometry (Generated synchronously and wrapped)
-  const textGeom = useMemo(() => {
-    if (!renderedText || renderedText.trim().length === 0) return null;
-
-    // Generate flat shapes from text using three.js font
-    const shapes = font.generateShapes(renderedText, fontSize);
-    
-    // Extrude flat shapes to get 3D geometry
-    const geom = new THREE.ExtrudeGeometry(shapes, {
-      depth: wallThickness,
-      bevelEnabled: false,
-      curveSegments: 12,
-    });
-
-    // Center the flat geometry (positions origin at geometric center)
-    geom.center();
-    geom.computeBoundingBox();
-
-    let box = geom.boundingBox;
-    let width = box.max.x - box.min.x;
-    let currentHeight = box.max.y - box.min.y;
-    if (width <= 0 || currentHeight <= 0) return geom;
-
-    // Scale X and Y uniformly first to make the visual height of capital letters
-    // exactly equal to targetHeight, preserving font proportions and ensuring 1mm overlap
-    // at both the top ring and the bottom base.
-    const targetHeight = letterHeight + 2.0;
-    const scaleFactor = targetHeight / currentHeight;
-    geom.scale(scaleFactor, scaleFactor, 1);
-    
-    // Recompute bounding box and width
-    geom.computeBoundingBox();
-    box = geom.boundingBox;
-    width = box.max.x - box.min.x;
-
-    const circumference = Math.PI * 2 * R_mid;
-
-    if (autoRepeat) {
-      // Scale X to stretch/compress to exactly fit the full circumference
-      geom.scale(circumference / width, 1, 1);
-      geom.computeBoundingBox();
-    } else {
-      // Compress X scale if it exceeds max allowed angle
-      const maxAngleRad = (textArcAngle * Math.PI) / 180;
-      const W_max = R_mid * maxAngleRad;
-      if (width > W_max) {
-        const scaleX = W_max / width;
-        geom.scale(scaleX, 1, 1);
-        geom.computeBoundingBox();
-      }
-    }
-
-    // Wrap flat geometry vertices around the cylinder
-    const posAttr = geom.attributes.position;
-    for (let i = 0; i < posAttr.count; i++) {
-      const x = posAttr.getX(i);
-      const y = posAttr.getY(i);
-      const z = posAttr.getZ(i);
-
-      // Angle wraps counter-clockwise: as x increases, theta decreases.
-      const theta = Math.PI / 2 - x / R_mid;
-      
-      const newX = (R_mid + z) * Math.cos(theta);
-      const newZ = (R_mid + z) * Math.sin(theta);
-      const newY = y;
-
-      posAttr.setXYZ(i, newX, newY, newZ);
-    }
-    
-    posAttr.needsUpdate = true;
-    geom.computeVertexNormals();
-
-    return geom;
-  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight]);
-
   return (
     <group ref={groupRef} name="NamePencilCase">
       {/* 1. Base Plate */}
@@ -318,10 +307,8 @@ const NamePencilCase = ({
         </mesh>
       )}
 
-      {/* 4. Wrapped Text */}
-      {textGeom && (
-        <mesh geometry={textGeom} position={[0, posY, 0]} material={mat} castShadow receiveShadow />
-      )}
+      {/* 4. Individual flat characters rotated around cylinder */}
+      {letterComponents}
 
       {/* 5. Vertical Grate Bars */}
       {verticalBarComponents}
