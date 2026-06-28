@@ -75,7 +75,7 @@ const App = () => {
   const [reliefScale, setReliefScale] = useState(1.0);
 
   // Name specific states
-  const [text, setText] = useState('SEMİH');
+  const [text, setText] = useState('ENDER');
   const [fontName, setFontName] = useState('Plus_Jakarta_Sans_Bold.json');
   const [textArcAngle, setTextArcAngle] = useState(120);
   const [numVerticalBars, setNumVerticalBars] = useState(12);
