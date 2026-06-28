@@ -540,33 +540,35 @@ const App = () => {
               </div>
 
               {/* DIVIDERS & CONNECTIONS */}
-              <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
-                <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
-                  {t('dividers')}
-                </h2>
-                <div className="mb-4">
-                  <div className="text-xs text-slate-400 mb-1.5">{t('divider_mode')}</div>
-                  <div className="flex gap-1">
-                    {['none', 'support', 'full'].map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setDividerMode(m)}
-                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
-                          dividerMode === m
-                            ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
-                            : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
-                        }`}
-                      >
-                        {t(`divider_mode_${m}`)}
-                      </button>
-                    ))}
+              {hasCentralColumn && (
+                <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
+                  <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
+                    {t('dividers')}
+                  </h2>
+                  <div className="mb-4">
+                    <div className="text-xs text-slate-400 mb-1.5">{t('divider_mode')}</div>
+                    <div className="flex gap-1">
+                      {['none', 'support', 'full'].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setDividerMode(m)}
+                          className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                            dividerMode === m
+                              ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
+                              : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
+                          }`}
+                        >
+                          {t(`divider_mode_${m}`)}
+                        </button>
+                      ))}
+                    </div>
                   </div>
+                  {dividerMode !== 'none' && (
+                    <Slider label={t('num_dividers')} value={numDividers} onChange={setNumDividers} min={2} max={6} step={1} />
+                  )}
                 </div>
-                {dividerMode !== 'none' && (
-                  <Slider label={t('num_dividers')} value={numDividers} onChange={setNumDividers} min={2} max={6} step={1} />
-                )}
-              </div>
+              )}
 
               {/* NAME COLORS */}
               <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
@@ -671,7 +673,7 @@ const App = () => {
                   numVerticalBars={numVerticalBars}
                   hasCentralColumn={hasCentralColumn}
                   centralColumnDiameter={centralColumnDiameter}
-                  dividerMode={dividerMode}
+                  dividerMode={hasCentralColumn ? dividerMode : 'none'}
                   numDividers={numDividers}
                   materialColor={materialColor}
                   groupRef={groupRef}
