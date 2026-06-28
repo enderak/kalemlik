@@ -211,16 +211,20 @@ const NamePencilCase = ({
     // Generate flat shapes from text using three.js font
     const shapes = font.generateShapes(renderedText, fontSize);
     
-    // Auto-merge floating dots (for Turkish characters like İ, Ö, Ü, Ğ)
-    // We inspect all 2D shapes, identify small floating dots/accents at the top,
-    // and pull them down to physically merge with the main letter body below.
+    // Auto-connect floating dots/accents (for Turkish characters like İ, Ö, Ü, Ğ)
+    // Instead of modifying existing curve points (which corrupts shared vector references),
+    // we generate a new bridge shape (rectangle) in 2D space to physically link each dot
+    // to the main body of the letter.
+    const bridges = [];
     shapes.forEach(shape => {
       const points = shape.getPoints();
       if (points.length === 0) return;
       
-      let minY = Infinity;
-      let maxY = -Infinity;
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
       points.forEach(p => {
+        if (p.x < minX) minX = p.x;
+        if (p.x > maxX) maxX = p.x;
         if (p.y < minY) minY = p.y;
         if (p.y > maxY) maxY = p.y;
       });
@@ -231,44 +235,29 @@ const NamePencilCase = ({
       const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
       
       if (isDot) {
-        // Target Y for the bottom of the dot to merge solid with the letter body below.
-        // Standard cap height is ~0.76 * fontSize, so merging at 0.72 * fontSize ensures a strong 3D print connection.
-        const targetMinY = fontSize * 0.72; 
-        const shiftY = minY - targetMinY;
-        
-        if (shiftY > 0) {
-          // Translate all curves in the shape path
-          shape.curves.forEach(curve => {
-            if (curve.v1) curve.v1.y -= shiftY;
-            if (curve.v2) curve.v2.y -= shiftY;
-            if (curve.v3) curve.v3.y -= shiftY;
-            if (curve.v4) curve.v4.y -= shiftY;
-            if (curve.p1) curve.p1.y -= shiftY;
-            if (curve.p2) curve.p2.y -= shiftY;
-          });
-          // Translate the start point
-          if (shape.currentPoint) {
-            shape.currentPoint.y -= shiftY;
-          }
-          // Also translate holes if any (though dots rarely have holes)
-          if (shape.holes) {
-            shape.holes.forEach(hole => {
-              hole.curves.forEach(curve => {
-                if (curve.v1) curve.v1.y -= shiftY;
-                if (curve.v2) curve.v2.y -= shiftY;
-                if (curve.v3) curve.v3.y -= shiftY;
-                if (curve.v4) curve.v4.y -= shiftY;
-                if (curve.p1) curve.p1.y -= shiftY;
-                if (curve.p2) curve.p2.y -= shiftY;
-              });
-              if (hole.currentPoint) {
-                hole.currentPoint.y -= shiftY;
-              }
-            });
-          }
+        const centerX = (minX + maxX) / 2;
+        // Make the bridge width 45% of the dot width (a clean vertical connector)
+        const bridgeW = (maxX - minX) * 0.45;
+        const bridgeBottom = fontSize * 0.70; // Connects deep into the letter body (cap-height is ~0.76)
+        const bridgeTop = minY + 2.0; // Enters 2mm into the dot
+
+        if (bridgeTop > bridgeBottom) {
+          const bridge = new THREE.Shape();
+          const x0 = centerX - bridgeW / 2;
+          const x1 = centerX + bridgeW / 2;
+          
+          bridge.moveTo(x0, bridgeBottom);
+          bridge.lineTo(x1, bridgeBottom);
+          bridge.lineTo(x1, bridgeTop);
+          bridge.lineTo(x0, bridgeTop);
+          bridge.closePath();
+          
+          bridges.push(bridge);
         }
       }
     });
+    // Add all bridge shapes to the shapes array so they get extruded and wrapped together
+    shapes.push(...bridges);
 
     // Extrude flat shapes to get 3D geometry
     let geom = new THREE.ExtrudeGeometry(shapes, {
