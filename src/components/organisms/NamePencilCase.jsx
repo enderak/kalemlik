@@ -328,9 +328,9 @@ const NamePencilCase = ({
         
         if (isDottedBody && dotConnection === 'ring') {
           // Clamp the top of the body shape to create a visual gap below the top ring/dot.
-          // We want a 2.5mm gap below the top ring (which starts at letterHeight).
-          // So the body shape should go at most up to letterHeight - 2.5.
-          const targetMaxY = letterHeight - 2.5;
+          // We want a 7.0mm gap below the top ring (which starts at letterHeight).
+          // So the body shape should go at most up to letterHeight - 7.0.
+          const targetMaxY = letterHeight - 7.0;
           const clampY = targetMaxY / scaleFactor + refBaseline;
           
           const clampedVectors = new Set();
