@@ -1,8 +1,8 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { Geometry, Base, Subtraction } from '@react-three/csg';
-import { Text3D } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useLoader } from '@react-three/fiber';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 
 const SEG = 48;
 
@@ -25,12 +25,13 @@ const NamePencilCase = ({
   groupRef,
   autoRepeat = true,
 }) => {
-  const meshRef = useRef();
-
   const outerR = outerDiameter / 2;
   const innerR = Math.max(1, outerR - wallThickness);
   const letterHeight = height - baseHeight - topRingHeight;
   const fontPath = `/fonts/${fontName}`;
+
+  // Load the font synchronously using Suspense (useLoader suspends component until loaded)
+  const font = useLoader(FontLoader, fontPath);
 
   // 1. Base Plate Geometry
   const baseGeom = useMemo(() => {
@@ -82,7 +83,7 @@ const NamePencilCase = ({
   const posY = baseHeight + letterHeight / 2;
   const fontSize = letterHeight + 2; // vertical overlap
 
-  // Calculate repeated text and final rendering string
+  // Calculate repeated text and final rendering parameters
   const { renderedText, finalBarsCount, finalOccupiedAngleRad } = useMemo(() => {
     if (!text || text.trim().length === 0) {
       return { renderedText: '', finalBarsCount: numVerticalBars, finalOccupiedAngleRad: 0 };
@@ -100,7 +101,7 @@ const NamePencilCase = ({
       const repeated = Array(repetitions).fill(cleanText).join('  ') + '  ';
       return {
         renderedText: repeated,
-        finalBarsCount: 0, // No bars needed when text covers 360 degrees
+        finalBarsCount: 0,
         finalOccupiedAngleRad: Math.PI * 2,
       };
     } else {
@@ -115,11 +116,75 @@ const NamePencilCase = ({
     }
   }, [text, autoRepeat, letterHeight, R_mid, numVerticalBars, textArcAngle]);
 
+  // 4. Wrapped Text Geometry (Generated synchronously and wrapped)
+  const textGeom = useMemo(() => {
+    if (!renderedText || renderedText.trim().length === 0) return null;
+
+    // Generate flat shapes from text using three.js font
+    const shapes = font.generateShapes(renderedText, fontSize);
+    
+    // Extrude flat shapes to get 3D geometry
+    const geom = new THREE.ExtrudeGeometry(shapes, {
+      depth: wallThickness,
+      bevelEnabled: false,
+      curveSegments: 12,
+    });
+
+    // Center the flat geometry (positions origin at geometric center)
+    geom.center();
+    geom.computeBoundingBox();
+
+    const box = geom.boundingBox;
+    const width = box.max.x - box.min.x;
+    if (width <= 0) return geom;
+
+    const circumference = Math.PI * 2 * R_mid;
+
+    if (autoRepeat) {
+      // Scale X to stretch/compress to exactly fit the full circumference
+      geom.scale(circumference / width, 1, 1);
+      geom.computeBoundingBox();
+    } else {
+      // Compress X scale if it exceeds max allowed angle
+      const maxAngleRad = (textArcAngle * Math.PI) / 180;
+      const W_max = R_mid * maxAngleRad;
+      if (width > W_max) {
+        const scaleX = W_max / width;
+        geom.scale(scaleX, 1, 1);
+        geom.computeBoundingBox();
+      }
+    }
+
+    // Wrap flat geometry vertices around the cylinder
+    const posAttr = geom.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const x = posAttr.getX(i);
+      const y = posAttr.getY(i);
+      const z = posAttr.getZ(i);
+
+      // Angle wraps counter-clockwise: as x increases (reading left to right),
+      // theta decreases, which places the letters clockwise on the cylinder
+      // so looking from the front it is read left-to-right (counter-clockwise around).
+      const theta = Math.PI / 2 - x / R_mid;
+      
+      const newX = (R_mid + z) * Math.cos(theta);
+      const newZ = (R_mid + z) * Math.sin(theta);
+      const newY = y;
+
+      posAttr.setXYZ(i, newX, newY, newZ);
+    }
+    
+    posAttr.needsUpdate = true;
+    geom.computeVertexNormals();
+
+    return geom;
+  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle]);
+
   // 5. Vertical Grate Bars (distributed in the remaining angle)
   const verticalBarComponents = useMemo(() => {
     if (finalBarsCount <= 0) return [];
     
-    const startAngle = Math.PI / 2 + finalOccupiedAngleRad / 2 + 0.15; // 0.15 rad safety gap
+    const startAngle = Math.PI / 2 + finalOccupiedAngleRad / 2 + 0.15;
     const endAngle = Math.PI / 2 - finalOccupiedAngleRad / 2 + Math.PI * 2 - 0.15;
     const barHeight = letterHeight + 2;
 
@@ -216,66 +281,6 @@ const NamePencilCase = ({
     });
   }, [materialColor]);
 
-  // Continuously verify and wrap the geometry inside the render loop.
-  // This guarantees it updates instantly when text, font, sizes, or radius change.
-  useFrame(() => {
-    if (!meshRef.current) return;
-    const geom = meshRef.current.geometry;
-    if (!geom) return;
-
-    // Unique key representing current configuration state
-    const key = `${renderedText}_${fontName}_${fontSize}_${wallThickness}_${R_mid}_${textArcAngle}_${autoRepeat}`;
-    if (geom.userData.wrapKey === key) return; // already wrapped this geometry state
-
-    geom.userData.wrapKey = key;
-
-    // 1. Center the geometry
-    geom.center();
-    geom.computeBoundingBox();
-    
-    // 2. Measure the original flat width
-    const box = geom.boundingBox;
-    const width = box.max.x - box.min.x;
-    if (width <= 0) return;
-
-    const circumference = Math.PI * 2 * R_mid;
-
-    if (autoRepeat) {
-      geom.scale(circumference / width, 1, 1);
-      geom.computeBoundingBox();
-    } else {
-      const maxAngleRad = (textArcAngle * Math.PI) / 180;
-      const W_max = R_mid * maxAngleRad;
-      if (width > W_max) {
-        const scaleX = W_max / width;
-        geom.scale(scaleX, 1, 1);
-        geom.computeBoundingBox();
-      }
-    }
-
-    // 3. Wrap each vertex around the cylinder of radius R_mid
-    const posAttr = geom.attributes.position;
-    for (let i = 0; i < posAttr.count; i++) {
-      const x = posAttr.getX(i);
-      const y = posAttr.getY(i);
-      const z = posAttr.getZ(i);
-
-      // Angle wraps counter-clockwise: as x increases (reading left to right),
-      // theta decreases, which places the letters clockwise on the cylinder
-      // so looking from the front it is read left-to-right (counter-clockwise around).
-      const theta = Math.PI / 2 - x / R_mid;
-      
-      const newX = (R_mid + z) * Math.cos(theta);
-      const newZ = (R_mid + z) * Math.sin(theta);
-      const newY = y;
-
-      posAttr.setXYZ(i, newX, newY, newZ);
-    }
-    
-    posAttr.needsUpdate = true;
-    geom.computeVertexNormals();
-  });
-
   return (
     <group ref={groupRef} name="NamePencilCase">
       {/* 1. Base Plate */}
@@ -302,18 +307,9 @@ const NamePencilCase = ({
       )}
 
       {/* 4. Wrapped Text */}
-      {renderedText && renderedText.trim().length > 0 && (
-        <mesh ref={meshRef} position={[0, posY, 0]} castShadow receiveShadow>
-          <Text3D
-            font={fontPath}
-            size={fontSize}
-            height={wallThickness}
-            curveSegments={12} // smooth curves
-            bevelEnabled={false}
-          >
-            {renderedText}
-            <meshStandardMaterial color={materialColor} roughness={0.85} />
-          </Text3D>
+      {textGeom && (
+        <mesh geometry={textGeom} position={[0, posY, 0]} castShadow receiveShadow>
+          <meshStandardMaterial color={materialColor} roughness={0.85} />
         </mesh>
       )}
 
