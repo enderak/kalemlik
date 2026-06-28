@@ -222,18 +222,9 @@ const NamePencilCase = ({
     // This allows the cap faces to bend smoothly around the cylinder.
     geom = subdivideGeometry(geom, 2);
 
-    // Center the geometry (positions origin at geometric center)
-    geom.center();
-    geom.computeBoundingBox();
-
-    let box = geom.boundingBox;
-    let width = box.max.x - box.min.x;
-    if (width <= 0) return geom;
-
     // Calculate a stable scale factor using a reference capital letter 'E'
     // instead of the whole text. This prevents letters with accents/dots (like 'İ')
-    // from bloating the bounding box height and shrinking the other letters,
-    // which was creating a gap at the top ring.
+    // from bloating the bounding box height and shrinking the other letters.
     const refShapes = font.generateShapes('E', fontSize);
     const refGeom = new THREE.ExtrudeGeometry(refShapes, {
       depth: wallThickness,
@@ -245,12 +236,15 @@ const NamePencilCase = ({
 
     const targetHeight = letterHeight + 2.0;
     const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
+    
+    // Scale the geometry in X and Y
     geom.scale(scaleFactor, scaleFactor, 1);
     
-    // Recompute bounding box and width after stable height scaling
+    // Compute bounding box after scaling
     geom.computeBoundingBox();
-    box = geom.boundingBox;
-    width = box.max.x - box.min.x;
+    let box = geom.boundingBox;
+    let width = box.max.x - box.min.x;
+    if (width <= 0) return geom;
 
     const circumference = Math.PI * 2 * R_mid;
 
@@ -258,6 +252,8 @@ const NamePencilCase = ({
       // Scale X to stretch/compress to exactly fit the full circumference
       geom.scale(circumference / width, 1, 1);
       geom.computeBoundingBox();
+      box = geom.boundingBox;
+      width = box.max.x - box.min.x;
     } else {
       // Compress X scale if it exceeds max allowed angle
       const maxAngleRad = (textArcAngle * Math.PI) / 180;
@@ -266,8 +262,23 @@ const NamePencilCase = ({
         const scaleX = W_max / width;
         geom.scale(scaleX, 1, 1);
         geom.computeBoundingBox();
+        box = geom.boundingBox;
+        width = box.max.x - box.min.x;
       }
     }
+
+    // Instead of geom.center() which shifts the baseline down when ascenders/dots are present,
+    // we align Y based on the absolute baseline of the letters (box.min.y before translation).
+    // The baseline of the letters will sit exactly 1mm inside the base.
+    const translateX = - (box.max.x + box.min.x) / 2;
+    const translateZ = - (box.max.z + box.min.z) / 2;
+    
+    // Local Y offset corresponding to world space: baseHeight - 1.0
+    // posY = baseHeight + letterHeight / 2
+    const targetLocalBaselineY = - (letterHeight / 2) - 1.0;
+    const translateY = targetLocalBaselineY - box.min.y;
+
+    geom.translate(translateX, translateY, translateZ);
 
     // Wrap flat geometry vertices around the cylinder
     const posAttr = geom.attributes.position;
@@ -310,7 +321,7 @@ const NamePencilCase = ({
     if (normAttr) normAttr.needsUpdate = true;
 
     return geom;
-  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight]);
+  }, [renderedText, font, fontSize, wallThickness, R_mid, autoRepeat, textArcAngle, letterHeight, baseHeight]);
 
   // 5. Vertical Grate Bars (distributed in the remaining angle)
   const verticalBarComponents = useMemo(() => {
