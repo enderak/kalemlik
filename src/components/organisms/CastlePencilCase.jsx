@@ -212,18 +212,37 @@ function makeCylinderBrickGeoms(outerR, height, wallThick, brickDepth, brickW, b
   const circ = Math.PI * 2 * outerR;
   const cols = Math.floor(circ / (brickW + gap));
   const aStep = (Math.PI * 2) / cols;
+  const brickRatio = brickW / (brickW + gap);
+  const brickA = aStep * brickRatio;
+  const arcSegs = 4;
+  const centerR = outerR - wallThick * 0.25;
+  const innerR = centerR - brickDepth / 2;
+  const outerR_brick = centerR + brickDepth / 2;
   for (let r = 0; r < rows; r++) {
-    const y = r * (brickH + gap) + brickH / 2;
+    const y = r * (brickH + gap);
     const off = (r % 2) * (aStep / 2);
     for (let c = 0; c < cols; c++) {
-      const a = c * aStep + off;
-      const g = new THREE.BoxGeometry(brickW * (outerR / 50), brickH, brickDepth);
-      g.translate(0, y, outerR - wallThick * 0.25);
-      const q = new THREE.Quaternion().setFromUnitVectors(
-        new THREE.Vector3(0, 0, 1),
-        new THREE.Vector3(Math.sin(a), 0, Math.cos(a))
-      );
-      g.applyQuaternion(q);
+      const aCenter = c * aStep + off;
+      const sA = aCenter - brickA / 2 - Math.PI / 2;
+      const eA = aCenter + brickA / 2 - Math.PI / 2;
+      const shape = new THREE.Shape();
+      for (let j = 0; j <= arcSegs; j++) {
+        const t = sA + (eA - sA) * (j / arcSegs);
+        const x = outerR_brick * Math.cos(t);
+        const y2 = outerR_brick * Math.sin(t);
+        if (j === 0) shape.moveTo(x, y2); else shape.lineTo(x, y2);
+      }
+      for (let j = arcSegs; j >= 0; j--) {
+        const t = sA + (eA - sA) * (j / arcSegs);
+        const x = innerR * Math.cos(t);
+        const y2 = innerR * Math.sin(t);
+        shape.lineTo(x, y2);
+      }
+      shape.closePath();
+      const g = new THREE.ExtrudeGeometry(shape, { depth: brickH, bevelEnabled: false });
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, y, 0);
+      g.computeVertexNormals();
       bricks.push(g);
     }
   }
