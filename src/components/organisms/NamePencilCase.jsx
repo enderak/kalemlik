@@ -228,17 +228,26 @@ const NamePencilCase = ({
 
     let box = geom.boundingBox;
     let width = box.max.x - box.min.x;
-    let currentHeight = box.max.y - box.min.y;
-    if (width <= 0 || currentHeight <= 0) return geom;
+    if (width <= 0) return geom;
 
-    // Scale X and Y uniformly first to make the visual height of capital letters
-    // exactly equal to targetHeight, preserving font proportions and ensuring 1mm overlap
-    // at both the top ring and the bottom base.
+    // Calculate a stable scale factor using a reference capital letter 'E'
+    // instead of the whole text. This prevents letters with accents/dots (like 'İ')
+    // from bloating the bounding box height and shrinking the other letters,
+    // which was creating a gap at the top ring.
+    const refShapes = font.generateShapes('E', fontSize);
+    const refGeom = new THREE.ExtrudeGeometry(refShapes, {
+      depth: wallThickness,
+      bevelEnabled: false,
+    });
+    refGeom.computeBoundingBox();
+    const refHeight = refGeom.boundingBox.max.y - refGeom.boundingBox.min.y;
+    refGeom.dispose();
+
     const targetHeight = letterHeight + 2.0;
-    const scaleFactor = targetHeight / currentHeight;
+    const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
     geom.scale(scaleFactor, scaleFactor, 1);
     
-    // Recompute bounding box and width
+    // Recompute bounding box and width after stable height scaling
     geom.computeBoundingBox();
     box = geom.boundingBox;
     width = box.max.x - box.min.x;
