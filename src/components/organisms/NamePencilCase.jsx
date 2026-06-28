@@ -258,7 +258,7 @@ const NamePencilCase = ({
       dots.forEach(dot => {
         const centerX = (dot.minX + dot.maxX) / 2;
         const bridgeW = (dot.maxX - dot.minX) * 0.45;
-        const bridgeBottom = fontSize * 0.70;
+        const bridgeBottom = fontSize * 0.76 - 2.0;
         const bridgeTop = dot.minY + 2.0;
 
         if (bridgeTop > bridgeBottom) {
