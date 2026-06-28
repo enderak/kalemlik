@@ -227,18 +227,22 @@ const NamePencilCase = ({
     const shapes = font.generateShapes(renderedText, fontSize);
     
     // Find all dot shapes and record their horizontal X centers.
-    const dots = [];
-    shapes.forEach(shape => {
+    const dotInfo = [];
+    shapes.forEach((shape, index) => {
       const bounds = getShapeBounds(shape);
       const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
       if (isDot) {
-        dots.push(bounds);
+        dotInfo.push({
+          index,
+          shape,
+          bounds,
+          centerX: (bounds.minX + bounds.maxX) / 2,
+          centerY: (bounds.minY + bounds.maxY) / 2,
+        });
       }
     });
 
     // Calculate a stable scale factor using a reference capital letter 'E'
-    // instead of the whole text. This prevents letters with accents/dots (like 'İ')
-    // from bloating the bounding box height and shrinking the other letters.
     const refShapes = font.generateShapes('E', fontSize);
     const refGeom = new THREE.ExtrudeGeometry(refShapes, {
       depth: wallThickness,
@@ -251,6 +255,83 @@ const NamePencilCase = ({
 
     const targetHeight = letterHeight + 2.0;
     const scaleFactor = refHeight > 0 ? targetHeight / refHeight : 1.0;
+
+    // Auto-widen the gap between the two dots of letters like 'Ö' and 'Ü'
+    // We scan for pairs of dots that are horizontally and vertically close,
+    // and shift them outwards by 4.5% of font size (~5.5mm).
+    const processedIndices = new Set();
+    const dx = fontSize * 0.045; 
+
+    for (let i = 0; i < dotInfo.length; i++) {
+      if (processedIndices.has(dotInfo[i].index)) continue;
+      
+      for (let j = i + 1; j < dotInfo.length; j++) {
+        if (processedIndices.has(dotInfo[j].index)) continue;
+        
+        const xDist = Math.abs(dotInfo[i].centerX - dotInfo[j].centerX);
+        const yDist = Math.abs(dotInfo[i].bounds.minY - dotInfo[j].bounds.minY);
+        
+        // If they are close in both X and Y, they belong to the same letter (Ö or Ü)
+        if (xDist > 0 && xDist < fontSize * 0.35 && yDist < fontSize * 0.05) {
+          processedIndices.add(dotInfo[i].index);
+          processedIndices.add(dotInfo[j].index);
+          
+          const leftDot = dotInfo[i].centerX < dotInfo[j].centerX ? dotInfo[i] : dotInfo[j];
+          const rightDot = dotInfo[i].centerX < dotInfo[j].centerX ? dotInfo[j] : dotInfo[i];
+          
+          // Translate left dot curves to the left
+          const leftVectors = new Set();
+          const shiftLeft = (v) => {
+            if (v && !leftVectors.has(v)) {
+              v.x -= dx;
+              leftVectors.add(v);
+            }
+          };
+          leftDot.shape.curves.forEach(curve => {
+            shiftLeft(curve.v0);
+            shiftLeft(curve.v1);
+            shiftLeft(curve.v2);
+            shiftLeft(curve.v3);
+            shiftLeft(curve.v4);
+            shiftLeft(curve.p1);
+            shiftLeft(curve.p2);
+          });
+          shiftLeft(leftDot.shape.currentPoint);
+          
+          // Translate right dot curves to the right
+          const rightVectors = new Set();
+          const shiftRight = (v) => {
+            if (v && !rightVectors.has(v)) {
+              v.x += dx;
+              rightVectors.add(v);
+            }
+          };
+          rightDot.shape.curves.forEach(curve => {
+            shiftRight(curve.v0);
+            shiftRight(curve.v1);
+            shiftRight(curve.v2);
+            shiftRight(curve.v3);
+            shiftRight(curve.v4);
+            shiftRight(curve.p1);
+            shiftRight(curve.p2);
+          });
+          shiftRight(rightDot.shape.currentPoint);
+          
+          // Update horizontal coordinates in our records
+          leftDot.centerX -= dx;
+          leftDot.bounds.minX -= dx;
+          leftDot.bounds.maxX -= dx;
+          
+          rightDot.centerX += dx;
+          rightDot.bounds.minX += dx;
+          rightDot.bounds.maxX += dx;
+          
+          break;
+        }
+      }
+    }
+
+    const dots = dotInfo.map(info => info.bounds);
 
     // Create bridges in 2D space if in bridge mode
     const bridges = [];
@@ -280,7 +361,6 @@ const NamePencilCase = ({
 
     // If 'ring' mode is active, modify the 2D shapes of dotted letters' bodies (before extrusion)
     // to clamp both their outer boundaries and their inner holes.
-    // This solves geometric distortion on letters with holes like 'Ö' and 'Ğ'.
     if (dotConnection === 'ring') {
       shapes.forEach(shape => {
         const bounds = getShapeBounds(shape);
