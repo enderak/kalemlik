@@ -101,32 +101,17 @@ function subdivideGeometry(geom, levels = 2) {
   return currentGeom;
 }
 
-// Helper to calculate 2D shape bounds directly from its curves without calling getPoints()
-// which triggers Three.js's internal point caching and prevents subsequent in-place modifications from taking effect.
-function getShapeBoundsFromCurves(shape) {
+// Helper to calculate 2D shape bounds using Three.js built-in getPoints() which is 100% accurate
+function getShapeBounds(shape) {
+  const points = shape.getPoints();
   let minX = Infinity, maxX = -Infinity;
   let minY = Infinity, maxY = -Infinity;
-
-  const processVector = (v) => {
-    if (v) {
-      if (v.x < minX) minX = v.x;
-      if (v.x > maxX) maxX = v.x;
-      if (v.y < minY) minY = v.y;
-      if (v.y > maxY) maxY = v.y;
-    }
-  };
-
-  shape.curves.forEach(curve => {
-    processVector(curve.v0);
-    processVector(curve.v1);
-    processVector(curve.v2);
-    processVector(curve.v3);
-    processVector(curve.v4);
-    processVector(curve.p1);
-    processVector(curve.p2);
+  points.forEach(p => {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
   });
-  processVector(shape.currentPoint);
-
   return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
 }
 
@@ -244,22 +229,10 @@ const NamePencilCase = ({
     // Find all dot shapes and record their horizontal X centers.
     const dots = [];
     shapes.forEach(shape => {
-      const points = shape.getPoints();
-      if (points.length === 0) return;
-      
-      let minX = Infinity, maxX = -Infinity;
-      let minY = Infinity, maxY = -Infinity;
-      points.forEach(p => {
-        if (p.x < minX) minX = p.x;
-        if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y;
-        if (p.y > maxY) maxY = p.y;
-      });
-      
-      const shapeH = maxY - minY;
-      const isDot = shapeH < (fontSize * 0.25) && minY > (fontSize * 0.60);
+      const bounds = getShapeBounds(shape);
+      const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
       if (isDot) {
-        dots.push({ minX, maxX, minY, maxY });
+        dots.push(bounds);
       }
     });
 
@@ -310,7 +283,7 @@ const NamePencilCase = ({
     // This solves geometric distortion on letters with holes like 'Ö' and 'Ğ'.
     if (dotConnection === 'ring') {
       shapes.forEach(shape => {
-        const bounds = getShapeBoundsFromCurves(shape);
+        const bounds = getShapeBounds(shape);
         const isDot = bounds.height < (fontSize * 0.25) && bounds.minY > (fontSize * 0.60);
         const centerX = (bounds.minX + bounds.maxX) / 2;
         
