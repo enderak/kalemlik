@@ -212,7 +212,8 @@ const NamePencilCase = ({
   const mat = useMemo(() => {
     return new THREE.MeshStandardMaterial({
       color: materialColor,
-      roughness: 0.85,
+      roughness: 0.95, // matte finish to hide triangulation facets
+      metalness: 0.1,  // subtle plastic reflection
       side: THREE.DoubleSide,
     });
   }, [materialColor]);
@@ -319,9 +320,7 @@ const NamePencilCase = ({
 
       {/* 4. Wrapped Text */}
       {textGeom && (
-        <mesh geometry={textGeom} position={[0, posY, 0]} castShadow receiveShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} />
-        </mesh>
+        <mesh geometry={textGeom} position={[0, posY, 0]} material={mat} castShadow receiveShadow />
       )}
 
       {/* 5. Vertical Grate Bars */}
