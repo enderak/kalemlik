@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
+import { Geometry, Base, Subtraction } from '@react-three/csg';
 
 const SEG = 48;
 
@@ -249,6 +250,59 @@ function makeCylinderBrickGeoms(outerR, height, wallThick, brickDepth, brickW, b
   return bricks;
 }
 
+/* ============ AT ROLYEF ============ */
+
+function makeHorseReliefGeom(w, h, depth) {
+  // Shape 1: Head
+  const head = new THREE.Shape();
+  head.moveTo(-w * 0.10, h * 0.47);
+  head.quadraticCurveTo(-w * 0.13, h * 0.35, -w * 0.35, h * 0.29);
+  head.quadraticCurveTo(-w * 0.39, h * 0.26, -w * 0.37, h * 0.23);
+  head.lineTo(-w * 0.32, h * 0.19);
+  head.quadraticCurveTo(-w * 0.28, h * 0.17, -w * 0.22, h * 0.18);
+  head.quadraticCurveTo(-w * 0.16, h * 0.20, -w * 0.14, h * 0.22);
+  head.quadraticCurveTo(-w * 0.08, h * 0.20, -w * 0.04, h * 0.21);
+  head.quadraticCurveTo(w * 0.04, h * 0.25, w * 0.04, h * 0.29);
+  head.quadraticCurveTo(w * 0.02, h * 0.37, 0, h * 0.42);
+  head.closePath();
+
+  // Shape 2: Throat
+  const throat = new THREE.Shape();
+  throat.moveTo(-w * 0.20, h * 0.15);
+  throat.quadraticCurveTo(-w * 0.27, -h * 0.04, -w * 0.30, -h * 0.23);
+  throat.lineTo(-w * 0.24, -h * 0.23);
+  throat.quadraticCurveTo(-w * 0.21, -h * 0.04, -w * 0.14, h * 0.15);
+  throat.closePath();
+
+  // Shape 3: Slot 1
+  const slot1 = new THREE.Shape();
+  slot1.moveTo(w * 0.02, h * 0.12);
+  slot1.quadraticCurveTo(w * 0.07, -h * 0.06, w * 0.12, -h * 0.23);
+  slot1.lineTo(w * 0.16, -h * 0.23);
+  slot1.quadraticCurveTo(w * 0.11, -h * 0.06, w * 0.06, h * 0.12);
+  slot1.closePath();
+
+  // Shape 4: Slot 2
+  const slot2 = new THREE.Shape();
+  slot2.moveTo(w * 0.09, h * 0.15);
+  slot2.quadraticCurveTo(w * 0.14, -h * 0.02, w * 0.19, -h * 0.18);
+  slot2.lineTo(w * 0.23, -h * 0.18);
+  slot2.quadraticCurveTo(w * 0.18, -h * 0.02, w * 0.13, h * 0.15);
+  slot2.closePath();
+
+  // Shape 5: Slot 3
+  const slot3 = new THREE.Shape();
+  slot3.moveTo(w * 0.16, h * 0.18);
+  slot3.quadraticCurveTo(w * 0.21, h * 0.03, w * 0.26, -h * 0.13);
+  slot3.lineTo(w * 0.30, -h * 0.13);
+  slot3.quadraticCurveTo(w * 0.25, h * 0.03, w * 0.20, h * 0.18);
+  slot3.closePath();
+
+  const g = new THREE.ExtrudeGeometry([head, throat, slot1, slot2, slot3], { depth, bevelEnabled: false });
+  g.computeVertexNormals();
+  return g;
+}
+
 function makeSquareBrickGeoms(outerSize, wallThick, height, brickDepth, brickW, brickH, gap) {
   const s = outerSize / 2;
   const rows = Math.floor(height / (brickH + gap));
@@ -423,6 +477,10 @@ const CastlePencilCase = ({
   showBrickTexture = true,
   embossedBricks = false,
   brickDepth = 1.5,
+  showCastleRelief = false,
+  castleReliefDepth = 1,
+  reliefMode = 'emboss',
+  reliefScale = 1.0,
   groupRef,
 }) => {
   const isCylinder = shape === 'cylinder';
@@ -430,13 +488,53 @@ const CastlePencilCase = ({
   const texProps = useMemo(() => ({ map: brickTex }), [brickTex]);
 
   /* --- body --- */
-  const bodyGeom = useMemo(() => {
+  const outerGeom = useMemo(() => {
+    if (isCylinder) {
+      const outerR = outerDiameter / 2;
+      const g = new THREE.CylinderGeometry(outerR, outerR, height, SEG);
+      g.translate(0, height / 2, 0);
+      g.computeVertexNormals();
+      return g;
+    } else {
+      const s = outerSize / 2;
+      const r = Math.min(cornerRadius, s);
+      const shape = new THREE.Shape();
+      shape.moveTo(-s + r, -s);
+      shape.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
+      shape.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
+      shape.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
+      shape.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
+      const g = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, height / 2, 0);
+      g.computeVertexNormals();
+      return g;
+    }
+  }, [isCylinder, outerDiameter, outerSize, height, cornerRadius]);
+
+  const innerGeom = useMemo(() => {
+    const innerH = height - bottomThickness;
     if (isCylinder) {
       const outerR = outerDiameter / 2;
       const innerR = Math.max(0.5, outerR - wallThickness);
-      return makeCylinderCupBody(outerR, innerR, height, bottomThickness);
+      const g = new THREE.CylinderGeometry(innerR, innerR, innerH, SEG);
+      g.translate(0, innerH / 2, 0);
+      g.computeVertexNormals();
+      return g;
     } else {
-      return makeSquareCupBody(outerSize, wallThickness, height, bottomThickness, cornerRadius);
+      const si = (outerSize - 2 * wallThickness) / 2;
+      const ri = Math.max(0.5, cornerRadius - wallThickness);
+      const shape = new THREE.Shape();
+      shape.moveTo(-si + ri, -si);
+      shape.lineTo(si - ri, -si).quadraticCurveTo(si, -si, si, -si + ri);
+      shape.lineTo(si, si - ri).quadraticCurveTo(si, si, si - ri, si);
+      shape.lineTo(-si + ri, si).quadraticCurveTo(-si, si, -si, si - ri);
+      shape.lineTo(-si, -si + ri).quadraticCurveTo(-si, -si, -si + ri, -si);
+      const g = new THREE.ExtrudeGeometry(shape, { depth: innerH, bevelEnabled: false });
+      g.rotateX(-Math.PI / 2);
+      g.translate(0, innerH / 2, 0);
+      g.computeVertexNormals();
+      return g;
     }
   }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius]);
 
@@ -503,6 +601,35 @@ const CastlePencilCase = ({
       ));
     }
   }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, brickDepth, showBrickTexture, materialColor, texProps]);
+
+  const reliefGeom = useMemo(() => {
+    if (!showCastleRelief) return null;
+    const reliefH = Math.min(height * 0.3, 60) * reliefScale;
+    const reliefW = reliefH * 0.7;
+    return makeHorseReliefGeom(reliefW, reliefH, castleReliefDepth);
+  }, [showCastleRelief, height, castleReliefDepth, reliefScale]);
+
+  const reliefGeomForCSG = useMemo(() => {
+    if (!showCastleRelief) return null;
+    const reliefH = Math.min(height * 0.3, 60) * reliefScale;
+    const reliefW = reliefH * 0.7;
+    return makeHorseReliefGeom(reliefW, reliefH, castleReliefDepth + 20);
+  }, [showCastleRelief, height, castleReliefDepth, reliefScale]);
+
+  /* --- castle relief --- */
+  const castleReliefMesh = useMemo(() => {
+    if (!showCastleRelief || reliefMode !== 'emboss' || !reliefGeom) return null;
+    const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
+    const bottomY = isCylinder ? 0 : -height / 2;
+    const posY = bottomY + height * 0.48;
+    return (
+      <group key={`relief-${showBrickTexture}`} position={[0, posY, frontZ]}>
+        <mesh geometry={reliefGeom} name="CastleRelief" receiveShadow castShadow>
+          <meshStandardMaterial color={materialColor} roughness={0.75} map={brickTex} />
+        </mesh>
+      </group>
+    );
+  }, [showCastleRelief, reliefMode, isCylinder, outerDiameter, outerSize, height, reliefGeom, materialColor, showBrickTexture, brickTex]);
 
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
@@ -629,15 +756,34 @@ const CastlePencilCase = ({
     });
   }, [materialColor, brickTex]);
 
+  const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
+  const bottomY = isCylinder ? 0 : -height / 2;
+  const showEngravedRelief = showCastleRelief && reliefMode === 'engrave';
+
   return (
     <group ref={groupRef} name="CastlePencilCase">
-      <mesh geometry={bodyGeom} name="CastleBody" material={wallMat} receiveShadow castShadow />
+      <mesh name="CastleBody" material={wallMat} receiveShadow castShadow>
+        <Geometry>
+          <Base geometry={outerGeom} />
+          <Subtraction
+            geometry={innerGeom}
+            position={[0, bottomThickness, 0]}
+          />
+          {showEngravedRelief && reliefGeomForCSG && (
+            <Subtraction
+              geometry={reliefGeomForCSG}
+              position={[0, bottomY + height * 0.48, frontZ - castleReliefDepth]}
+            />
+          )}
+        </Geometry>
+      </mesh>
       {baseHeight > 0 && baseGeom && (
         <mesh geometry={baseGeom} name="CastleBase" material={wallMat} receiveShadow castShadow />
       )}
       {topRing}
       {towerMeshes}
       {brickMeshes}
+      {castleReliefMesh}
       {doorMesh}
       {windowMeshes}
       {crenMeshes}
