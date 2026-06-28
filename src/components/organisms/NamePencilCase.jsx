@@ -101,6 +101,35 @@ function subdivideGeometry(geom, levels = 2) {
   return currentGeom;
 }
 
+// Helper to calculate 2D shape bounds directly from its curves without calling getPoints()
+// which triggers Three.js's internal point caching and prevents subsequent in-place modifications from taking effect.
+function getShapeBoundsFromCurves(shape) {
+  let minX = Infinity, maxX = -Infinity;
+  let minY = Infinity, maxY = -Infinity;
+
+  const processVector = (v) => {
+    if (v) {
+      if (v.x < minX) minX = v.x;
+      if (v.x > maxX) maxX = v.x;
+      if (v.y < minY) minY = v.y;
+      if (v.y > maxY) maxY = v.y;
+    }
+  };
+
+  shape.curves.forEach(curve => {
+    processVector(curve.v0);
+    processVector(curve.v1);
+    processVector(curve.v2);
+    processVector(curve.v3);
+    processVector(curve.v4);
+    processVector(curve.p1);
+    processVector(curve.p2);
+  });
+  processVector(shape.currentPoint);
+
+  return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+}
+
 const NamePencilCase = ({
   text = 'ENDER',
   fontName = 'Plus_Jakarta_Sans_Bold.json',
@@ -291,7 +320,7 @@ const NamePencilCase = ({
     geom.scale(scaleFactor, scaleFactor, 1);
 
     // If 'ring' mode is active, modify the final 3D geometry vertices (before wrapping)
-    // to shift dots down and clamp the letter bodies to create a clean 3.0mm gap.
+    // to shift dots down and clamp the letter bodies to create a clean 3.5mm gap.
     // This completely avoids Three.js 2D path caching and shared-reference coordinate corruption.
     if (dotConnection === 'ring') {
       const posAttr = geom.attributes.position;
@@ -308,6 +337,7 @@ const NamePencilCase = ({
           // Add a small 0.5mm tolerance on the sides to catch all outline vertices
           if (x >= dotMinX - 0.5 && x <= dotMaxX + 0.5) {
             const dotMinY = dot.minY * scaleFactor;
+            const dotMaxY = dot.maxY * scaleFactor;
             
             if (y >= dotMinY - 1.0) {
               // This is a vertex of the dot shape itself!
@@ -321,8 +351,15 @@ const NamePencilCase = ({
               }
             } else {
               // This is a vertex of the dotted letter's main body!
-              // Clamp its Y coordinate to create a clean 3.0mm gap below the top ring (which starts at letterHeight).
-              const targetMaxY = letterHeight - 3.0;
+              // Clamp its Y coordinate to create exactly 3.5mm gap below the bottom of the dot.
+              // The dot's shifted bottom Y position will be:
+              const targetCenterY = letterHeight + topRingHeight / 2;
+              const dotH = (dotMaxY - dotMinY);
+              const dotBottomY = targetCenterY - dotH / 2;
+              
+              // We target exactly a 3.5mm gap between the dot's bottom and the stem's top
+              const targetMaxY = dotBottomY - 3.5;
+              
               if (y > targetMaxY) {
                 posAttr.setY(i, targetMaxY);
               }
