@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
+import { useLoader } from '@react-three/fiber';
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 import { Geometry, Base, Subtraction } from '@react-three/csg';
 
 const SEG = 48;
@@ -49,6 +51,19 @@ function makeCylinderCupBody(outerR, innerR, height, bottomThick) {
   const bottom = new THREE.ExtrudeGeometry(shape, { depth: bottomThick, bevelEnabled: false });
   bottom.rotateX(-Math.PI / 2);
   return mergeGeoms([outerTube, innerTube, bottom]);
+}
+
+function makeCorniceGeom(outerR, topExt, height, seg) {
+  const topR = outerR + topExt;
+  const pts = [
+    new THREE.Vector2(outerR, 0),
+    new THREE.Vector2(topR, 0),
+    new THREE.Vector2(topR, -height),
+    new THREE.Vector2(outerR, -height),
+  ];
+  const g = new THREE.LatheGeometry(pts, seg);
+  g.computeVertexNormals();
+  return g;
 }
 
 function makeCylinderBaseGeom(outerR, baseExt, baseH) {
@@ -481,11 +496,97 @@ const CastlePencilCase = ({
   castleReliefDepth = 1,
   reliefMode = 'emboss',
   reliefScale = 1.0,
+  topExtension = 6,
+  corniceHeight = 12,
+  // Text props
+  castleText = '',
+  castleFont = 'Plus_Jakarta_Sans_Bold.json',
+  castleTextHeight = 20,
+  castleTextDepth = 2,
+  castleTextPosition = 'cornice', // 'cornice' | 'body'
+  castleTextSpacing = 1,
+  castleTextArc = 360,
   groupRef,
 }) => {
   const isCylinder = shape === 'cylinder';
   const brickTex = useMemo(() => (showBrickTexture ? createBrickTexture() : null), [showBrickTexture]);
   const texProps = useMemo(() => ({ map: brickTex }), [brickTex]);
+
+  // Font loading for castle text
+  const fontPath = `/fonts/${castleFont}`;
+  const font = useLoader(FontLoader, fontPath);
+
+  // Generate castle text geometry
+  const castleTextGeom = useMemo(() => {
+    if (!castleText || !castleText.trim() || !font) return null;
+    const text = castleText.trim().toLocaleUpperCase('tr-TR');
+    
+    // Calculate radius for text placement
+    let radius, yPos;
+    if (isCylinder) {
+      if (castleTextPosition === 'cornice') {
+        radius = outerDiameter / 2 + topExtension + castleTextDepth / 2 + 0.1;
+      } else {
+        radius = outerDiameter / 2 + castleTextDepth / 2 + 0.1;
+      }
+      yPos = castleTextPosition === 'cornice' ? height - corniceHeight / 2 : height / 2;
+    } else {
+      radius = outerSize / 2 + castleTextDepth / 2 + 0.1;
+      yPos = 0;
+    }
+
+    if (isCylinder) {
+      // Per-character geometries wrapped around the cylinder
+      const charData = [];
+      let totalWidth = 0;
+      for (let i = 0; i < text.length; i++) {
+        const shapes = font.generateShapes(text[i], castleTextHeight);
+        const geom = new THREE.ExtrudeGeometry(shapes, {
+          depth: castleTextDepth,
+          bevelEnabled: false,
+        });
+        geom.computeBoundingBox();
+        const box = geom.boundingBox;
+        const charWidth = box.max.x - box.min.x;
+        geom.translate(-box.min.x - charWidth / 2, 0, -castleTextDepth / 2);
+        geom.computeVertexNormals();
+        charData.push({ geom, width: charWidth });
+        totalWidth += charWidth;
+      }
+      const spacing = castleTextSpacing;
+      const totalWithSpacing = totalWidth + spacing * (text.length - 1);
+      const arcAngle = totalWithSpacing / radius;
+      let currentX = -totalWithSpacing / 2;
+      return charData.map((cd) => {
+        const angle = currentX / radius;
+        currentX += cd.width + spacing;
+        return {
+          geom: cd.geom,
+          position: [
+            radius * Math.sin(angle),
+            yPos,
+            radius * Math.cos(angle),
+          ],
+          rotation: [0, angle, 0],
+        };
+      });
+    }
+
+    const shapes = font.generateShapes(text, castleTextHeight);
+    const geom = new THREE.ExtrudeGeometry(shapes, {
+      depth: castleTextDepth,
+      bevelEnabled: false,
+    });
+    geom.computeBoundingBox();
+    const box = geom.boundingBox;
+    const textWidth = box.max.x - box.min.x;
+
+    geom.translate(-box.min.x - textWidth / 2, 0, -castleTextDepth / 2);
+    geom.computeVertexNormals();
+
+    return { geom, radius, yPos, textWidth };
+  }, [castleText, castleFont, castleTextHeight, castleTextDepth, castleTextSpacing, castleTextPosition, 
+      isCylinder, outerDiameter, outerSize, height, topExtension, corniceHeight, wallThickness, font]);
 
   /* --- body --- */
   const outerGeom = useMemo(() => {
@@ -506,7 +607,7 @@ const CastlePencilCase = ({
       shape.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
       const g = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
       g.rotateX(-Math.PI / 2);
-      g.translate(0, height / 2, 0);
+      g.translate(0, -height / 2, 0);
       g.computeVertexNormals();
       return g;
     }
@@ -532,7 +633,7 @@ const CastlePencilCase = ({
       shape.lineTo(-si, -si + ri).quadraticCurveTo(-si, -si, -si + ri, -si);
       const g = new THREE.ExtrudeGeometry(shape, { depth: innerH, bevelEnabled: false });
       g.rotateX(-Math.PI / 2);
-      g.translate(0, innerH / 2, 0);
+      g.translate(0, -height / 2, 0);
       g.computeVertexNormals();
       return g;
     }
@@ -548,26 +649,43 @@ const CastlePencilCase = ({
     }
   }, [isCylinder, outerDiameter, outerSize, baseExtension, baseHeight, cornerRadius, height]);
 
+  /* --- cornice ledge (cylinder only) --- */
+  const corniceGeom = useMemo(() => {
+    if (!isCylinder || topExtension <= 0) return null;
+    const outerR = outerDiameter / 2;
+    return makeCorniceGeom(outerR, topExtension, corniceHeight, SEG);
+  }, [isCylinder, outerDiameter, topExtension, corniceHeight]);
+
+  const corniceMesh = useMemo(() => {
+    if (!corniceGeom) return null;
+    return (
+      <mesh key={`cornice-${showBrickTexture}`} geometry={corniceGeom} name="CastleCornice" position={[0, height, 0]} receiveShadow castShadow>
+        <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
+      </mesh>
+    );
+  }, [corniceGeom, height, showBrickTexture, materialColor, brickTex]);
+
   /* --- crenellations --- */
   const crenMeshes = useMemo(() => {
     if (isCylinder) {
       const outerR = outerDiameter / 2;
+      const topR = outerR + topExtension;
       const innerR = Math.max(0.5, outerR - wallThickness);
-      const geoms = makeCylinderCrenGeoms(outerR, innerR, height, numCrenellations, crenellationHeight, crenellationWidth);
+      const geoms = makeCylinderCrenGeoms(topR, innerR, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
-        <mesh key={`cren-c-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
+        <mesh key={`cren-c-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow position={[0, 0.1, 0]}>
+          <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
         </mesh>
       ));
     } else {
       const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
-        <mesh key={`cren-s-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
+        <mesh key={`cren-s-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow position={[0, 0.1, 0]}>
+          <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
         </mesh>
       ));
     }
-  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth, materialColor, showBrickTexture, texProps]);
+  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth, topExtension, materialColor, showBrickTexture, texProps]);
 
   /* --- towers --- */
   const towerMeshes = useMemo(() => {
@@ -731,7 +849,7 @@ const CastlePencilCase = ({
     return meshes;
   }, [hasWindows, numWindows, windowWidth, windowHeight, windowRecess, windowArched, wallThickness, isCylinder, outerDiameter, outerSize, height, showBrickTexture, windowColor, materialColor, texProps]);
 
-  /* --- top ring (cylinder only) --- */
+  /* --- top ring (closes the body's top annulus) --- */
   const topRing = useMemo(() => {
     if (!isCylinder) return null;
     const outerR = outerDiameter / 2;
@@ -780,6 +898,7 @@ const CastlePencilCase = ({
       {baseHeight > 0 && baseGeom && (
         <mesh geometry={baseGeom} name="CastleBase" material={wallMat} receiveShadow castShadow />
       )}
+      {corniceMesh}
       {topRing}
       {towerMeshes}
       {brickMeshes}
@@ -787,6 +906,39 @@ const CastlePencilCase = ({
       {doorMesh}
       {windowMeshes}
       {crenMeshes}
+      {castleTextGeom && isCylinder && Array.isArray(castleTextGeom) && castleTextGeom.map((charData, i) => (
+        <mesh
+          key={`castle-text-${i}`}
+          geometry={charData.geom}
+          name="CastleText"
+          position={charData.position}
+          rotation={charData.rotation}
+          receiveShadow
+          castShadow
+        >
+          <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+      {castleTextGeom && !isCylinder && (
+        <group key={`castle-text-sq-${showBrickTexture}`} name="CastleText">
+          {[0, Math.PI / 2, Math.PI, -Math.PI / 2].map((angle, i) => (
+            <mesh
+              key={`txt-${i}`}
+              geometry={castleTextGeom.geom}
+              position={[
+                Math.sin(angle) * castleTextGeom.radius,
+                castleTextGeom.yPos,
+                Math.cos(angle) * castleTextGeom.radius
+              ]}
+              rotation={[0, angle, 0]}
+              receiveShadow
+              castShadow
+            >
+              <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} />
+            </mesh>
+          ))}
+        </group>
+      )}
     </group>
   );
 };

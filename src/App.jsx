@@ -64,6 +64,15 @@ const App = () => {
   const [towerRadius, setTowerRadius] = useState(8);
   const [towerHeight, setTowerHeight] = useState(30);
   const [cornerRadius, setCornerRadius] = useState(5);
+  const [topExtension, setTopExtension] = useState(6);
+  const [corniceHeight, setCorniceHeight] = useState(12);
+  // Castle text states
+  const [castleText, setCastleText] = useState('');
+  const [castleFont, setCastleFont] = useState('Plus_Jakarta_Sans_Bold.json');
+  const [castleTextHeight, setCastleTextHeight] = useState(20);
+  const [castleTextDepth, setCastleTextDepth] = useState(2);
+  const [castleTextPosition, setCastleTextPosition] = useState('cornice');
+  const [castleTextSpacing, setCastleTextSpacing] = useState(1);
   const [showBrickTexture, setShowBrickTexture] = useState(true);
   const [embossedBricks, setEmbossedBricks] = useState(false);
   const [brickDepth, setBrickDepth] = useState(1.5);
@@ -97,6 +106,7 @@ const App = () => {
     setNumCrenellations(8);
     setCrenellationHeight(20);
     setCrenellationWidth(0.5);
+    setTopExtension(0);
     setHasDoor(false);
     setHasWindows(false);
     setHasTowers(false);
@@ -338,6 +348,26 @@ const App = () => {
                 <Slider label={t('bottom_thickness')} value={bottomThickness} onChange={setBottomThickness} min={2} max={8} step={0.5} />
                 <Slider label={t('base_height')} value={baseHeight} onChange={setBaseHeight} min={0} max={30} step={1} />
                 <Slider label={t('base_extension')} value={baseExtension} onChange={setBaseExtension} min={0} max={30} step={1} />
+                {shape === 'cylinder' && (
+                  <>
+                    <Slider
+                      label={t('top_extension')}
+                      value={topExtension}
+                      onChange={setTopExtension}
+                      min={0}
+                      max={30}
+                      step={1}
+                    />
+                    <Slider
+                      label={t('cornice_height')}
+                      value={corniceHeight}
+                      onChange={setCorniceHeight}
+                      min={4}
+                      max={40}
+                      step={1}
+                    />
+                  </>
+                )}
                 {shape === 'square' && (
                   <Slider label={t('corner_radius')} value={cornerRadius} onChange={setCornerRadius} min={1} max={20} />
                 )}
@@ -510,10 +540,55 @@ const App = () => {
                   </>
                 )}
               </div>
+
+              {/* CASTLE TEXT */}
+              <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
+                <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
+                  {t('castle_text')}
+                </h2>
+                <div className="mb-3">
+                  <label className="block text-xs text-slate-400 mb-1">{t('text_label')}</label>
+                  <input
+                    type="text"
+                    value={castleText}
+                    onChange={(e) => setCastleText(e.target.value.toLocaleUpperCase('tr-TR'))}
+                    className="w-full bg-slate-800 text-white border border-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-500"
+                    placeholder={t('text_placeholder')}
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="block text-xs text-slate-400 mb-1">{t('font_label')}</label>
+                  <select
+                    value={castleFont}
+                    onChange={(e) => setCastleFont(e.target.value)}
+                    className="w-full bg-slate-800 text-white border border-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-500"
+                  >
+                    {AVAILABLE_FONTS.map((font) => (
+                      <option key={font.value} value={font.value}>
+                        {font.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="block text-xs text-slate-400 mb-1">{t('castle_text_position')}</label>
+                  <select
+                    value={castleTextPosition}
+                    onChange={(e) => setCastleTextPosition(e.target.value)}
+                    className="w-full bg-slate-800 text-white border border-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="cornice">{t('text_pos_cornice')}</option>
+                    <option value="wall">{t('text_pos_wall')}</option>
+                  </select>
+                </div>
+                <Slider label={t('castle_text_height')} value={castleTextHeight} onChange={setCastleTextHeight} min={10} max={60} step={1} />
+                <Slider label={t('castle_text_depth')} value={castleTextDepth} onChange={setCastleTextDepth} min={0.5} max={5} step={0.25} />
+                <Slider label={t('castle_text_spacing')} value={castleTextSpacing} onChange={setCastleTextSpacing} min={0} max={5} step={0.25} />
+              </div>
             </>
           )}
 
-          {/* ==================================== */}
+              {/* ==================================== */}
           {/* NAME MODE SETTINGS */}
           {/* ==================================== */}
           {mode === 'name' && (
@@ -797,6 +872,14 @@ const App = () => {
                   reliefScale={reliefScale}
                   materialColor={materialColor}
                   doorColor={doorColor}
+                  topExtension={topExtension}
+                  corniceHeight={corniceHeight}
+                  castleText={castleText}
+                  castleFont={castleFont}
+                  castleTextHeight={castleTextHeight}
+                  castleTextDepth={castleTextDepth}
+                  castleTextPosition={castleTextPosition}
+                  castleTextSpacing={castleTextSpacing}
                   groupRef={groupRef}
                 />
               ) : (
