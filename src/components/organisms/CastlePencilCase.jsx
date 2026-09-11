@@ -727,22 +727,23 @@ const CastlePencilCase = ({
     if (!castleText || !castleText.trim() || !font) return null;
     const text = castleText.trim().toLocaleUpperCase('tr-TR');
     
-    // Calculate radius for text placement
+    // Calculate radius for text placement (embedded slightly into the wall for clean manifold union and no floating gap)
+    const embed = 0.2; // 0.2mm penetration into the wall so it firmly contacts and fuses with the surface
     let radius, yPos;
     if (isCylinder) {
       if (castleTextPosition === 'cornice') {
-        radius = outerDiameter / 2 + topExtension + castleTextDepth / 2 + 0.1;
+        radius = outerDiameter / 2 + topExtension + castleTextDepth / 2 - embed;
       } else {
-        radius = outerDiameter / 2 + castleTextDepth / 2 + 0.1;
+        radius = outerDiameter / 2 + castleTextDepth / 2 - embed;
       }
       yPos = castleTextPosition === 'cornice' ? height - corniceHeight / 2 : height / 2;
     } else {
       const s = outerSize / 2;
       if (castleTextPosition === 'cornice') {
-        radius = s + topExtension + castleTextDepth / 2 + 0.1;
+        radius = s + topExtension + castleTextDepth / 2 - embed;
         yPos = height - corniceHeight / 2;
       } else {
-        radius = s + castleTextDepth / 2 + 0.1;
+        radius = s + castleTextDepth / 2 - embed;
         yPos = height / 2;
       }
     }
