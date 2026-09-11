@@ -499,6 +499,7 @@ function makeSquareBrickGeoms(outerSize, wallThick, height, corniceH, baseH, bri
 
   const Nb = Math.max(2, Math.round((2 * s) / 26));
   const lBrick = (2 * s - (Nb + 1) * gap) / Nb;
+  const halfL = Math.max(2, (lBrick - gap) / 2);
 
   const bricks = [];
 
@@ -506,100 +507,50 @@ function makeSquareBrickGeoms(outerSize, wallThick, height, corniceH, baseH, bri
     const yCenter = Ystart + r * hRow + gap / 2 + hBrick / 2;
     const isEven = r % 2 === 0;
 
+    // Symmetric face spans along face tangential axis (-s to +s):
+    const spans = [];
     if (isEven) {
-      // Face 0 (+Z):
+      // Nb full bricks
       for (let i = 0; i < Nb; i++) {
-        const x0 = -s + gap + i * (lBrick + gap);
-        const x1 = (i === Nb - 1) ? s : x0 + lBrick;
-        const w = x1 - x0;
-        const g = new THREE.BoxGeometry(w, hBrick, tBrick);
-        g.translate((x0 + x1) / 2, yCenter, s - tBrick / 2);
-        bricks.push(g);
-      }
-      // Face 1 (+X):
-      for (let i = 0; i < Nb; i++) {
-        const z0 = s - gap - i * (lBrick + gap);
-        const z1 = (i === Nb - 1) ? -s : z0 - lBrick;
-        const w = Math.abs(z0 - z1);
-        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
-        g.translate(s - tBrick / 2, yCenter, (z0 + z1) / 2);
-        bricks.push(g);
-      }
-      // Face 2 (-Z):
-      for (let i = 0; i < Nb; i++) {
-        const x0 = s - gap - i * (lBrick + gap);
-        const x1 = (i === Nb - 1) ? -s : x0 - lBrick;
-        const w = Math.abs(x0 - x1);
-        const g = new THREE.BoxGeometry(w, hBrick, tBrick);
-        g.translate((x0 + x1) / 2, yCenter, -s + tBrick / 2);
-        bricks.push(g);
-      }
-      // Face 3 (-X):
-      for (let i = 0; i < Nb; i++) {
-        const z0 = -s + gap + i * (lBrick + gap);
-        const z1 = (i === Nb - 1) ? s : z0 + lBrick;
-        const w = z1 - z0;
-        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
-        g.translate(-s + tBrick / 2, yCenter, (z0 + z1) / 2);
-        bricks.push(g);
+        const u0 = -s + gap + i * (lBrick + gap);
+        const u1 = u0 + lBrick;
+        spans.push({ w: u1 - u0, center: (u0 + u1) / 2 });
       }
     } else {
-      // Odd row: Staggered by half-brick
-      const halfL = Math.max(2, (lBrick - gap) / 2);
+      // Staggered by half-brick (half brick at start, Nb-1 full bricks, half brick at end)
+      const uStart = -s + gap;
+      spans.push({ w: halfL, center: uStart + halfL / 2 });
+      for (let i = 0; i < Nb - 1; i++) {
+        const u0 = uStart + halfL + gap + i * (lBrick + gap);
+        const u1 = u0 + lBrick;
+        spans.push({ w: lBrick, center: (u0 + u1) / 2 });
+      }
+      const uEnd = s - gap;
+      spans.push({ w: halfL, center: uEnd - halfL / 2 });
+    }
 
+    // Apply the exact same pattern to all 4 faces with 90° rotational symmetry:
+    spans.forEach((sp) => {
       // Face 0 (+Z):
-      const g0 = new THREE.BoxGeometry(halfL, hBrick, tBrick);
-      g0.translate(-s + gap + halfL / 2, yCenter, s - tBrick / 2);
+      const g0 = new THREE.BoxGeometry(sp.w, hBrick, tBrick);
+      g0.translate(sp.center, yCenter, s - tBrick / 2);
       bricks.push(g0);
 
-      for (let i = 0; i < Nb - 1; i++) {
-        const x0 = -s + gap + halfL + gap + i * (lBrick + gap);
-        const g = new THREE.BoxGeometry(lBrick, hBrick, tBrick);
-        g.translate(x0 + lBrick / 2, yCenter, s - tBrick / 2);
-        bricks.push(g);
-      }
-
-      const lastX0 = s - gap - halfL;
-      const gLast = new THREE.BoxGeometry(halfL, hBrick, tBrick);
-      gLast.translate(lastX0 + halfL / 2, yCenter, s - tBrick / 2);
-      bricks.push(gLast);
-
-      // Face 1 (+X): wraps corner (+s, +s)
-      for (let i = 0; i < Nb; i++) {
-        const z0 = s - i * (lBrick + gap);
-        const z1 = (i === Nb - 1) ? -s + gap : z0 - lBrick;
-        const w = Math.abs(z0 - z1);
-        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
-        g.translate(s - tBrick / 2, yCenter, (z0 + z1) / 2);
-        bricks.push(g);
-      }
+      // Face 1 (+X):
+      const g1 = new THREE.BoxGeometry(tBrick, hBrick, sp.w);
+      g1.translate(s - tBrick / 2, yCenter, -sp.center);
+      bricks.push(g1);
 
       // Face 2 (-Z):
-      const g2_0 = new THREE.BoxGeometry(halfL, hBrick, tBrick);
-      g2_0.translate(s - gap - halfL / 2, yCenter, -s + tBrick / 2);
-      bricks.push(g2_0);
+      const g2 = new THREE.BoxGeometry(sp.w, hBrick, tBrick);
+      g2.translate(-sp.center, yCenter, -s + tBrick / 2);
+      bricks.push(g2);
 
-      for (let i = 0; i < Nb - 1; i++) {
-        const x0 = s - gap - halfL - gap - i * (lBrick + gap);
-        const g = new THREE.BoxGeometry(lBrick, hBrick, tBrick);
-        g.translate(x0 - lBrick / 2, yCenter, -s + tBrick / 2);
-        bricks.push(g);
-      }
-
-      const g2_last = new THREE.BoxGeometry(halfL, hBrick, tBrick);
-      g2_last.translate(-s + gap + halfL / 2, yCenter, -s + tBrick / 2);
-      bricks.push(g2_last);
-
-      // Face 3 (-X): wraps corner (-s, -s)
-      for (let i = 0; i < Nb; i++) {
-        const z0 = -s + i * (lBrick + gap);
-        const z1 = (i === Nb - 1) ? s - gap : z0 + lBrick;
-        const w = z1 - z0;
-        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
-        g.translate(-s + tBrick / 2, yCenter, (z0 + z1) / 2);
-        bricks.push(g);
-      }
-    }
+      // Face 3 (-X):
+      const g3 = new THREE.BoxGeometry(tBrick, hBrick, sp.w);
+      g3.translate(-s + tBrick / 2, yCenter, sp.center);
+      bricks.push(g3);
+    });
   }
 
   return bricks;
@@ -1123,26 +1074,9 @@ const CastlePencilCase = ({
       const frameGeom = new THREE.ExtrudeGeometry(plateShape, { depth, bevelEnabled: false, steps: 1 });
       frameGeom.computeVertexNormals();
 
-      // Recessed interior floor plate
-      const floorShape = new THREE.Shape();
-      floorShape.moveTo(-pw / 2 + pr, -ph / 2);
-      floorShape.lineTo(pw / 2 - pr, -ph / 2);
-      floorShape.quadraticCurveTo(pw / 2, -ph / 2, pw / 2, -ph / 2 + pr);
-      floorShape.lineTo(pw / 2, ph / 2 - pr);
-      floorShape.quadraticCurveTo(pw / 2, ph / 2, pw / 2 - pr, ph / 2);
-      floorShape.lineTo(-pw / 2 + pr, ph / 2);
-      floorShape.quadraticCurveTo(-pw / 2, ph / 2, -pw / 2, ph / 2 - pr);
-      floorShape.lineTo(-pw / 2, -ph / 2 + pr);
-      floorShape.quadraticCurveTo(-pw / 2, -ph / 2, -pw / 2 + pr, -ph / 2);
-      floorShape.closePath();
-
-      const floorGeom = new THREE.ExtrudeGeometry(floorShape, { depth: 0.5, bevelEnabled: false });
-      floorGeom.computeVertexNormals();
-
       return {
         mode: 'engrave',
         frameGeom,
-        floorGeom,
         depth,
         pw,
         ph,
@@ -1166,19 +1100,9 @@ const CastlePencilCase = ({
         </group>
       );
     } else {
-      // True Physical Engraving: Carved pocket with recessed shadowed floor
-      const d = reliefGeomData.depth;
+      // True Physical Engraving: Carved pocket directly recessed into the wall surface
       return (
         <group key={`relief-engrave-${showBrickTexture}-${reliefSource}`} position={[0, posY, frontZ]}>
-          {/* Recessed cavity floor plate (slightly darker for realistic ambient depth) */}
-          <mesh
-            geometry={reliefGeomData.floorGeom}
-            position={[0, 0, -0.2]}
-            name="CastleEngravedFloor"
-            receiveShadow
-          >
-            <meshStandardMaterial color={materialColor} roughness={0.95} map={brickTex} />
-          </mesh>
           {/* Wall plate with cutout silhouette creating authentic engraved pocket */}
           <mesh
             geometry={reliefGeomData.frameGeom}
