@@ -55,10 +55,11 @@ function makeCylinderCupBody(outerR, innerR, height, bottomThick) {
 
 function makeCorniceGeom(outerR, topExt, height, seg) {
   const topR = outerR + topExt;
+  const flareH = Math.min(topExt, height * 0.75);
   const pts = [
     new THREE.Vector2(outerR, 0),
     new THREE.Vector2(topR, 0),
-    new THREE.Vector2(topR, -height),
+    new THREE.Vector2(topR, -height + flareH),
     new THREE.Vector2(outerR, -height),
   ];
   const g = new THREE.LatheGeometry(pts, seg);
@@ -746,6 +747,21 @@ const CastlePencilCase = ({
       }
     }
 
+    // Helper: 45° cantilevered chamfer transition from wall surface to text face (like castle cornice flare)
+    // Eliminates 90° horizontal overhangs so text prints cleanly without supports
+    const apply45DegreeChamfer = (geometry, depth) => {
+      const pos = geometry.getAttribute('position');
+      for (let i = 0; i < pos.count; i++) {
+        const z = pos.getZ(i);
+        const y = pos.getY(i);
+        // z runs from -depth / 2 (wall surface) to +depth / 2 (front face)
+        // factor: 1 at wall (back), 0 at front tip
+        const factor = THREE.MathUtils.clamp((depth / 2 - z) / depth, 0, 1);
+        pos.setY(i, y - factor * depth);
+      }
+      geometry.computeVertexNormals();
+    };
+
     if (isCylinder) {
       // Per-character geometries wrapped around the cylinder
       const charData = [];
@@ -760,13 +776,19 @@ const CastlePencilCase = ({
         const box = geom.boundingBox;
         const charWidth = box.max.x - box.min.x;
         geom.translate(-box.min.x - charWidth / 2, 0, -castleTextDepth / 2);
-        geom.computeVertexNormals();
+
+        // Apply 45° self-supporting chamfer transition on body wall
+        if (castleTextPosition === 'body') {
+          apply45DegreeChamfer(geom, castleTextDepth);
+        } else {
+          geom.computeVertexNormals();
+        }
+
         charData.push({ geom, width: charWidth });
         totalWidth += charWidth;
       }
       const spacing = castleTextSpacing;
       const totalWithSpacing = totalWidth + spacing * (text.length - 1);
-      const arcAngle = totalWithSpacing / radius;
       let currentX = -totalWithSpacing / 2;
       return charData.map((cd) => {
         const angle = currentX / radius;
@@ -793,7 +815,13 @@ const CastlePencilCase = ({
     const textWidth = box.max.x - box.min.x;
 
     geom.translate(-box.min.x - textWidth / 2, 0, -castleTextDepth / 2);
-    geom.computeVertexNormals();
+
+    // Apply 45° self-supporting chamfer transition on body wall
+    if (castleTextPosition === 'body') {
+      apply45DegreeChamfer(geom, castleTextDepth);
+    } else {
+      geom.computeVertexNormals();
+    }
 
     return { geom, radius, yPos, textWidth };
   }, [castleText, castleFont, castleTextHeight, castleTextDepth, castleTextSpacing, castleTextPosition, 
