@@ -370,9 +370,9 @@ function makeCylinderBrickGeoms(outerR, height, wallThick, brickDepth, brickW, b
   return bricks;
 }
 
-/* ============ AT ROLYEF ============ */
+/* ============ AT RÖLYEF & ŞEKİL YARDIMCILARI ============ */
 
-function makeHorseReliefGeom(w, h, depth) {
+function getHorseShapes(w, h) {
   // Shape 1: Head
   const head = new THREE.Shape();
   head.moveTo(-w * 0.10, h * 0.47);
@@ -418,9 +418,69 @@ function makeHorseReliefGeom(w, h, depth) {
   slot3.quadraticCurveTo(w * 0.25, h * 0.03, w * 0.20, h * 0.18);
   slot3.closePath();
 
-  const g = new THREE.ExtrudeGeometry([head, throat, slot1, slot2, slot3], { depth, bevelEnabled: false });
+  return [head, throat, slot1, slot2, slot3];
+}
+
+function makeHorseReliefGeom(w, h, depth) {
+  const shapes = getHorseShapes(w, h);
+  const g = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
   g.computeVertexNormals();
   return g;
+}
+
+function transformPoint2D(p, sx, sy, tx, ty) {
+  return new THREE.Vector2(p.x * sx + tx, p.y * sy + ty);
+}
+
+function transformCurve2D(c, sx, sy, tx, ty) {
+  if (c.isLineCurve || c instanceof THREE.LineCurve) {
+    return new THREE.LineCurve(transformPoint2D(c.v1, sx, sy, tx, ty), transformPoint2D(c.v2, sx, sy, tx, ty));
+  } else if (c.isQuadraticBezierCurve || c instanceof THREE.QuadraticBezierCurve) {
+    return new THREE.QuadraticBezierCurve(
+      transformPoint2D(c.v0, sx, sy, tx, ty),
+      transformPoint2D(c.v1, sx, sy, tx, ty),
+      transformPoint2D(c.v2, sx, sy, tx, ty)
+    );
+  } else if (c.isCubicBezierCurve || c instanceof THREE.CubicBezierCurve) {
+    return new THREE.CubicBezierCurve(
+      transformPoint2D(c.v0, sx, sy, tx, ty),
+      transformPoint2D(c.v1, sx, sy, tx, ty),
+      transformPoint2D(c.v2, sx, sy, tx, ty),
+      transformPoint2D(c.v3, sx, sy, tx, ty)
+    );
+  } else {
+    const pts = c.getPoints(12).map((p) => transformPoint2D(p, sx, sy, tx, ty));
+    const curves = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      curves.push(new THREE.LineCurve(pts[i], pts[i + 1]));
+    }
+    return curves;
+  }
+}
+
+function transformShape2D(shape, sx, sy, tx, ty) {
+  const s = new THREE.Shape();
+  const curves = [];
+  shape.curves.forEach((c) => {
+    const r = transformCurve2D(c, sx, sy, tx, ty);
+    if (Array.isArray(r)) curves.push(...r);
+    else curves.push(r);
+  });
+  s.curves = curves;
+  if (shape.holes && shape.holes.length > 0) {
+    s.holes = shape.holes.map((h) => {
+      const p = new THREE.Path();
+      const hc = [];
+      h.curves.forEach((c) => {
+        const r = transformCurve2D(c, sx, sy, tx, ty);
+        if (Array.isArray(r)) hc.push(...r);
+        else hc.push(r);
+      });
+      p.curves = hc;
+      return p;
+    });
+  }
+  return s;
 }
 
 function makeSquareBrickGeoms(outerSize, wallThick, height, corniceH, baseH, brickDepth) {
@@ -963,64 +1023,176 @@ const CastlePencilCase = ({
     }
   }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, corniceHeight, baseHeight, brickDepth, showBrickTexture, materialColor, texProps]);
 
-  const reliefGeom = useMemo(() => {
+  // Prepared 2D shapes for relief (both preset horse and custom SVG):
+  const reliefShapesData = useMemo(() => {
     if (!showCastleRelief) return null;
 
+    let shapes = [];
     if (reliefSource === 'custom_svg' && customSvgText && customSvgText.trim()) {
       try {
         const loader = new SVGLoader();
         const svgData = loader.parse(customSvgText);
-        const shapes = [];
         svgData.paths.forEach((path) => {
           const pathShapes = SVGLoader.createShapes(path);
           shapes.push(...pathShapes);
         });
-
-        if (shapes.length > 0) {
-          const depth = Math.max(0.2, castleReliefDepth);
-          const geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
-          geom.computeBoundingBox();
-          const box = geom.boundingBox;
-          const size = box.getSize(new THREE.Vector3());
-          const maxDim = Math.max(size.x, size.y);
-          if (maxDim > 0) {
-            const targetH = Math.min(height * 0.35, 60) * reliefScale;
-            const scale = targetH / maxDim;
-            const center = box.getCenter(new THREE.Vector3());
-            // Center in X and Y, align depth to Z=0
-            geom.translate(-center.x, -center.y, -box.min.z);
-            // Flip Y so SVG renders right side up
-            geom.scale(scale, -scale, 1);
-            geom.computeVertexNormals();
-            return geom;
-          }
-        }
       } catch (err) {
         console.error('Failed to parse custom SVG relief:', err);
       }
     }
 
-    // Default / Preset horse relief:
-    const reliefH = Math.min(height * 0.3, 60) * reliefScale;
-    const reliefW = reliefH * 0.7;
-    return makeHorseReliefGeom(reliefW, reliefH, castleReliefDepth);
-  }, [showCastleRelief, reliefSource, customSvgText, height, castleReliefDepth, reliefScale]);
+    if (!shapes || shapes.length === 0) {
+      // Fallback to horse shapes normalized around 0,0
+      const horseRaw = getHorseShapes(30, 42);
+      shapes = horseRaw;
+    }
 
-  /* --- castle relief --- */
+    try {
+      const tempGeom = new THREE.ShapeGeometry(shapes);
+      tempGeom.computeBoundingBox();
+      const box = tempGeom.boundingBox;
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y);
+      if (maxDim <= 0) return null;
+
+      const targetH = Math.min(height * 0.35, 60) * reliefScale;
+      const scale = targetH / maxDim;
+
+      // Normalize shapes so they are centered at (0, 0) and oriented right side up
+      // Note: SVG Y is downwards, so we flip Y by using -scale for SVG or when height > 0
+      const sy = (reliefSource === 'custom_svg') ? -scale : scale;
+      const normalizedShapes = shapes.map((sh) =>
+        transformShape2D(sh, scale, sy, -center.x * scale, -center.y * sy)
+      );
+
+      // Recalculate normalized bounds
+      const normGeom = new THREE.ShapeGeometry(normalizedShapes);
+      normGeom.computeBoundingBox();
+      const normBox = normGeom.boundingBox;
+      const normSize = normBox.getSize(new THREE.Vector3());
+
+      return {
+        shapes: normalizedShapes,
+        bounds: normBox,
+        width: normSize.x,
+        height: normSize.y,
+      };
+    } catch (e) {
+      console.error('Error normalizing relief shapes:', e);
+      return null;
+    }
+  }, [showCastleRelief, reliefSource, customSvgText, height, reliefScale]);
+
+  /* --- relief geometry (emboss vs engrave) --- */
+  const reliefGeomData = useMemo(() => {
+    if (!showCastleRelief || !reliefShapesData) return null;
+
+    const { shapes, width, height: rH } = reliefShapesData;
+    const depth = Math.max(0.3, castleReliefDepth);
+
+    if (reliefMode === 'emboss') {
+      // Protruding solid relief extruded forward
+      const geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
+      geom.computeVertexNormals();
+      return { mode: 'emboss', geom };
+    } else {
+      // 'engrave' -> Real physical carved pocket/recess in the wall
+      const padX = Math.max(width * 0.22, 6);
+      const padY = Math.max(rH * 0.22, 6);
+      const pw = width + padX * 2;
+      const ph = rH + padY * 2;
+      const pr = Math.min(4, pw / 6, ph / 6);
+
+      // Create outer plate with rounded corners
+      const plateShape = new THREE.Shape();
+      plateShape.moveTo(-pw / 2 + pr, -ph / 2);
+      plateShape.lineTo(pw / 2 - pr, -ph / 2);
+      plateShape.quadraticCurveTo(pw / 2, -ph / 2, pw / 2, -ph / 2 + pr);
+      plateShape.lineTo(pw / 2, ph / 2 - pr);
+      plateShape.quadraticCurveTo(pw / 2, ph / 2, pw / 2 - pr, ph / 2);
+      plateShape.lineTo(-pw / 2 + pr, ph / 2);
+      plateShape.quadraticCurveTo(-pw / 2, ph / 2, -pw / 2, ph / 2 - pr);
+      plateShape.lineTo(-pw / 2, -ph / 2 + pr);
+      plateShape.quadraticCurveTo(-pw / 2, -ph / 2, -pw / 2 + pr, -ph / 2);
+      plateShape.closePath();
+
+      // Add relief shapes as cutout holes in the plate
+      plateShape.holes.push(...shapes);
+
+      const frameGeom = new THREE.ExtrudeGeometry(plateShape, { depth, bevelEnabled: false, steps: 1 });
+      frameGeom.computeVertexNormals();
+
+      // Recessed interior floor plate
+      const floorShape = new THREE.Shape();
+      floorShape.moveTo(-pw / 2 + pr, -ph / 2);
+      floorShape.lineTo(pw / 2 - pr, -ph / 2);
+      floorShape.quadraticCurveTo(pw / 2, -ph / 2, pw / 2, -ph / 2 + pr);
+      floorShape.lineTo(pw / 2, ph / 2 - pr);
+      floorShape.quadraticCurveTo(pw / 2, ph / 2, pw / 2 - pr, ph / 2);
+      floorShape.lineTo(-pw / 2 + pr, ph / 2);
+      floorShape.quadraticCurveTo(-pw / 2, ph / 2, -pw / 2, ph / 2 - pr);
+      floorShape.lineTo(-pw / 2, -ph / 2 + pr);
+      floorShape.quadraticCurveTo(-pw / 2, -ph / 2, -pw / 2 + pr, -ph / 2);
+      floorShape.closePath();
+
+      const floorGeom = new THREE.ExtrudeGeometry(floorShape, { depth: 0.5, bevelEnabled: false });
+      floorGeom.computeVertexNormals();
+
+      return {
+        mode: 'engrave',
+        frameGeom,
+        floorGeom,
+        depth,
+        pw,
+        ph,
+      };
+    }
+  }, [showCastleRelief, reliefShapesData, reliefMode, castleReliefDepth]);
+
+  /* --- castle relief mesh --- */
   const castleReliefMesh = useMemo(() => {
-    if (!showCastleRelief || !reliefGeom) return null;
+    if (!showCastleRelief || !reliefGeomData) return null;
+
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
-    const bottomY = 0;
-    const posY = bottomY + height * 0.48;
-    const offset = reliefMode === 'emboss' ? 0.05 : -castleReliefDepth + 0.1;
-    return (
-      <group key={`relief-${showBrickTexture}-${reliefMode}-${reliefSource}`} position={[0, posY, frontZ + offset]}>
-        <mesh geometry={reliefGeom} name="CastleRelief" receiveShadow castShadow>
-          <meshStandardMaterial color={materialColor} roughness={0.75} map={brickTex} />
-        </mesh>
-      </group>
-    );
-  }, [showCastleRelief, reliefMode, reliefSource, isCylinder, outerDiameter, outerSize, height, reliefGeom, castleReliefDepth, materialColor, showBrickTexture, brickTex]);
+    const posY = height * 0.48;
+
+    if (reliefGeomData.mode === 'emboss') {
+      return (
+        <group key={`relief-emboss-${showBrickTexture}-${reliefSource}`} position={[0, posY, frontZ + 0.05]}>
+          <mesh geometry={reliefGeomData.geom} name="CastleReliefEmboss" receiveShadow castShadow>
+            <meshStandardMaterial color={materialColor} roughness={0.75} map={brickTex} />
+          </mesh>
+        </group>
+      );
+    } else {
+      // True Physical Engraving: Carved pocket with recessed shadowed floor
+      const d = reliefGeomData.depth;
+      return (
+        <group key={`relief-engrave-${showBrickTexture}-${reliefSource}`} position={[0, posY, frontZ]}>
+          {/* Recessed cavity floor plate (slightly darker for realistic ambient depth) */}
+          <mesh
+            geometry={reliefGeomData.floorGeom}
+            position={[0, 0, -0.2]}
+            name="CastleEngravedFloor"
+            receiveShadow
+          >
+            <meshStandardMaterial color={materialColor} roughness={0.95} map={brickTex} />
+          </mesh>
+          {/* Wall plate with cutout silhouette creating authentic engraved pocket */}
+          <mesh
+            geometry={reliefGeomData.frameGeom}
+            position={[0, 0, 0]}
+            name="CastleEngravedFrame"
+            receiveShadow
+            castShadow
+          >
+            <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
+          </mesh>
+        </group>
+      );
+    }
+  }, [showCastleRelief, reliefGeomData, isCylinder, outerDiameter, outerSize, height, materialColor, showBrickTexture, brickTex, reliefSource]);
 
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
