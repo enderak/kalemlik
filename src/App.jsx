@@ -82,6 +82,25 @@ const App = () => {
   const [doorColor, setDoorColor] = useState('#1c1917');
   const [reliefMode, setReliefMode] = useState('emboss');
   const [reliefScale, setReliefScale] = useState(1.0);
+  const [reliefSource, setReliefSource] = useState('preset_horse'); // 'preset_horse' | 'custom_svg'
+  const [customSvgText, setCustomSvgText] = useState('');
+  const [customSvgName, setCustomSvgName] = useState('');
+
+  const handleSvgUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCustomSvgName(file.name);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        setCustomSvgText(text);
+        setReliefSource('custom_svg');
+        setShowCastleRelief(true);
+      }
+    };
+    reader.readAsText(file);
+  };
 
   // Name specific states
   const [text, setText] = useState('ENDER');
@@ -536,15 +555,67 @@ const App = () => {
                 )}
                 <label className="flex items-center gap-3 mt-3 cursor-pointer">
                   <div className="relative">
-                    <input type="checkbox" checked={showCastleRelief} onChange={(e) => setShowCastleRelief(e.target.checked)} className="sr-only peer" />
+                    <input
+                      type="checkbox"
+                      checked={showCastleRelief}
+                      onChange={(e) => setShowCastleRelief(e.target.checked)}
+                      className="sr-only peer"
+                    />
                     <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
                     <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
                   </div>
-                  <span className="text-sm text-slate-300">{t('horse_relief')}</span>
+                  <span className="text-sm text-slate-300">{t('has_relief')}</span>
                 </label>
                 {showCastleRelief && (
-                  <>
-                    <div className="mt-3 mb-3">
+                  <div className="mt-3 space-y-3 bg-slate-800/40 p-3 rounded-xl border border-slate-750">
+                    <div>
+                      <div className="text-xs text-slate-400 mb-1.5">{t('relief_source')}</div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setReliefSource('preset_horse')}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                            reliefSource === 'preset_horse'
+                              ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 shadow-sm'
+                              : 'bg-slate-800 text-slate-400 border border-transparent hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_source_preset')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReliefSource('custom_svg')}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                            reliefSource === 'custom_svg'
+                              ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 shadow-sm'
+                              : 'bg-slate-800 text-slate-400 border border-transparent hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_source_custom_svg')}
+                        </button>
+                      </div>
+                    </div>
+
+                    {reliefSource === 'custom_svg' && (
+                      <div className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60">
+                        <label className="block w-full cursor-pointer">
+                          <input
+                            type="file"
+                            accept=".svg"
+                            onChange={handleSvgUpload}
+                            className="hidden"
+                          />
+                          <div className="w-full py-2 px-3 rounded-md bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 text-xs font-semibold text-center border border-amber-500/40 transition-colors flex items-center justify-center gap-2">
+                            <span>📁</span> {t('upload_svg_btn')}
+                          </div>
+                        </label>
+                        <div className="text-[11px] text-slate-400 mt-1.5 text-center truncate">
+                          {customSvgName ? `✓ ${customSvgName}` : t('no_svg_selected')}
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
                       <div className="text-xs text-slate-400 mb-1.5">{t('relief_mode')}</div>
                       <div className="flex gap-1.5">
                         {['emboss', 'engrave'].map((mode) => (
@@ -563,9 +634,10 @@ const App = () => {
                         ))}
                       </div>
                     </div>
+
                     <Slider label={t('relief_depth')} value={castleReliefDepth} onChange={setCastleReliefDepth} min={0.3} max={4} step={0.1} />
                     <Slider label={t('relief_scale')} value={reliefScale} onChange={setReliefScale} min={0.5} max={2.0} step={0.05} />
-                  </>
+                  </div>
                 )}
               </div>
 
@@ -895,6 +967,8 @@ const App = () => {
                   embossedBricks={embossedBricks}
                   brickDepth={brickDepth}
                   showCastleRelief={showCastleRelief}
+                  reliefSource={reliefSource}
+                  customSvgText={customSvgText}
                   castleReliefDepth={castleReliefDepth}
                   reliefMode={reliefMode}
                   reliefScale={reliefScale}

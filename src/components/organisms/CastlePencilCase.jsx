@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
+import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader';
 
 const SEG = 48;
 
@@ -684,6 +685,8 @@ const CastlePencilCase = ({
   embossedBricks = false,
   brickDepth = 1.5,
   showCastleRelief = false,
+  reliefSource = 'preset_horse', // 'preset_horse' | 'custom_svg'
+  customSvgText = '',
   castleReliefDepth = 1,
   reliefMode = 'emboss',
   reliefScale = 1.0,
@@ -962,17 +965,46 @@ const CastlePencilCase = ({
 
   const reliefGeom = useMemo(() => {
     if (!showCastleRelief) return null;
+
+    if (reliefSource === 'custom_svg' && customSvgText && customSvgText.trim()) {
+      try {
+        const loader = new SVGLoader();
+        const svgData = loader.parse(customSvgText);
+        const shapes = [];
+        svgData.paths.forEach((path) => {
+          const pathShapes = SVGLoader.createShapes(path);
+          shapes.push(...pathShapes);
+        });
+
+        if (shapes.length > 0) {
+          const depth = Math.max(0.2, castleReliefDepth);
+          const geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
+          geom.computeBoundingBox();
+          const box = geom.boundingBox;
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y);
+          if (maxDim > 0) {
+            const targetH = Math.min(height * 0.35, 60) * reliefScale;
+            const scale = targetH / maxDim;
+            const center = box.getCenter(new THREE.Vector3());
+            // Center in X and Y, align depth to Z=0
+            geom.translate(-center.x, -center.y, -box.min.z);
+            // Flip Y so SVG renders right side up
+            geom.scale(scale, -scale, 1);
+            geom.computeVertexNormals();
+            return geom;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to parse custom SVG relief:', err);
+      }
+    }
+
+    // Default / Preset horse relief:
     const reliefH = Math.min(height * 0.3, 60) * reliefScale;
     const reliefW = reliefH * 0.7;
     return makeHorseReliefGeom(reliefW, reliefH, castleReliefDepth);
-  }, [showCastleRelief, height, castleReliefDepth, reliefScale]);
-
-  const reliefGeomForCSG = useMemo(() => {
-    if (!showCastleRelief) return null;
-    const reliefH = Math.min(height * 0.3, 60) * reliefScale;
-    const reliefW = reliefH * 0.7;
-    return makeHorseReliefGeom(reliefW, reliefH, castleReliefDepth + 20);
-  }, [showCastleRelief, height, castleReliefDepth, reliefScale]);
+  }, [showCastleRelief, reliefSource, customSvgText, height, castleReliefDepth, reliefScale]);
 
   /* --- castle relief --- */
   const castleReliefMesh = useMemo(() => {
@@ -980,15 +1012,15 @@ const CastlePencilCase = ({
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
     const bottomY = 0;
     const posY = bottomY + height * 0.48;
-    const offset = reliefMode === 'emboss' ? 0.1 : -0.3;
+    const offset = reliefMode === 'emboss' ? 0.05 : -castleReliefDepth + 0.1;
     return (
-      <group key={`relief-${showBrickTexture}-${reliefMode}`} position={[0, posY, frontZ + offset]}>
+      <group key={`relief-${showBrickTexture}-${reliefMode}-${reliefSource}`} position={[0, posY, frontZ + offset]}>
         <mesh geometry={reliefGeom} name="CastleRelief" receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.75} map={brickTex} />
         </mesh>
       </group>
     );
-  }, [showCastleRelief, reliefMode, isCylinder, outerDiameter, outerSize, height, reliefGeom, materialColor, showBrickTexture, brickTex]);
+  }, [showCastleRelief, reliefMode, reliefSource, isCylinder, outerDiameter, outerSize, height, reliefGeom, castleReliefDepth, materialColor, showBrickTexture, brickTex]);
 
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {
