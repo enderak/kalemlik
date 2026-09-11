@@ -119,6 +119,30 @@ const App = () => {
     setMaterialColor('#262626');
   };
 
+  const applyPresetSquareTower = () => {
+    setShape('square');
+    setOuterSize(80);
+    setHeight(115);
+    setWallThickness(4.5);
+    setBottomThickness(4);
+    setBaseHeight(0);
+    setBaseExtension(0);
+    setTopExtension(7);
+    setCorniceHeight(16);
+    setNumCrenellations(8);
+    setCrenellationHeight(16);
+    setCrenellationWidth(0.52);
+    setCornerRadius(1);
+    setHasDoor(false);
+    setHasWindows(false);
+    setHasTowers(false);
+    setShowBrickTexture(false);
+    setEmbossedBricks(true);
+    setBrickDepth(1.2);
+    setShowCastleRelief(false);
+    setMaterialColor('#8d6e63');
+  };
+
   const applyPresetSize = (d, h) => {
     if (shape === 'cylinder') {
       setOuterDiameter(d);
@@ -259,12 +283,20 @@ const App = () => {
                 <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-3 uppercase">
                   {t('presets')}
                 </h2>
-                <button
-                  onClick={applyPresetChessRook}
-                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-750 text-amber-400 font-bold rounded-lg text-xs transition-all border border-amber-500/20 hover:border-amber-500/50 flex items-center justify-center gap-2"
-                >
-                  ♟️ {t('preset_chess_rook')}
-                </button>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    onClick={applyPresetSquareTower}
+                    className="w-full py-2.5 bg-gradient-to-r from-amber-900/50 to-amber-700/40 hover:from-amber-800/60 hover:to-amber-600/50 text-amber-200 font-bold rounded-lg text-xs transition-all border border-amber-500/40 hover:border-amber-500/70 flex items-center justify-center gap-2 shadow-sm"
+                  >
+                    🏰 {t('preset_square_castle')}
+                  </button>
+                  <button
+                    onClick={applyPresetChessRook}
+                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-750 text-amber-400 font-bold rounded-lg text-xs transition-all border border-amber-500/20 hover:border-amber-500/50 flex items-center justify-center gap-2"
+                  >
+                    ♟️ {t('preset_chess_rook')}
+                  </button>
+                </div>
               </div>
 
               {/* SHAPE */}
@@ -348,28 +380,24 @@ const App = () => {
                 <Slider label={t('bottom_thickness')} value={bottomThickness} onChange={setBottomThickness} min={2} max={8} step={0.5} />
                 <Slider label={t('base_height')} value={baseHeight} onChange={setBaseHeight} min={0} max={30} step={1} />
                 <Slider label={t('base_extension')} value={baseExtension} onChange={setBaseExtension} min={0} max={30} step={1} />
-                {shape === 'cylinder' && (
-                  <>
-                    <Slider
-                      label={t('top_extension')}
-                      value={topExtension}
-                      onChange={setTopExtension}
-                      min={0}
-                      max={30}
-                      step={1}
-                    />
-                    <Slider
-                      label={t('cornice_height')}
-                      value={corniceHeight}
-                      onChange={setCorniceHeight}
-                      min={4}
-                      max={40}
-                      step={1}
-                    />
-                  </>
-                )}
+                <Slider
+                  label={t('top_extension')}
+                  value={topExtension}
+                  onChange={setTopExtension}
+                  min={0}
+                  max={30}
+                  step={1}
+                />
+                <Slider
+                  label={t('cornice_height')}
+                  value={corniceHeight}
+                  onChange={setCorniceHeight}
+                  min={4}
+                  max={40}
+                  step={1}
+                />
                 {shape === 'square' && (
-                  <Slider label={t('corner_radius')} value={cornerRadius} onChange={setCornerRadius} min={1} max={20} />
+                  <Slider label={t('corner_radius')} value={cornerRadius} onChange={setCornerRadius} min={0} max={20} />
                 )}
               </div>
 

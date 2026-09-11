@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
-import { Geometry, Base, Subtraction } from '@react-three/csg';
 
 const SEG = 48;
 
@@ -108,52 +107,63 @@ function makeCylinderCrenGeoms(outerR, innerR, height, numCren, crenH, crenWRati
 
 /* ============ KARE GEOMETRY ============ */
 
-function makeSquareCupBody(outerSize, wallThick, height, bottomThick, cornerR) {
+function makeSquareCorniceGeom(outerSize, topExt, corniceH) {
+  if (topExt <= 0 || corniceH <= 0) return null;
   const s = outerSize / 2;
-  const r = Math.min(cornerR, s);
-  const outer = new THREE.Shape();
-  outer.moveTo(-s + r, -s);
-  outer.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
-  outer.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
-  outer.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
-  outer.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
+  const sTop = s + topExt;
+  const flareH = Math.min(topExt, corniceH * 0.75);
+  const yBot = -corniceH;
+  const yFlare = -corniceH + flareH;
+  const yTop = 0;
 
-  const innerSize = outerSize - 2 * wallThick;
-  if (innerSize > 2) {
-    const si = innerSize / 2;
-    const ri = Math.max(0.5, r - wallThick);
-    const hole = new THREE.Path();
-    hole.moveTo(-si + ri, -si);
-    hole.lineTo(si - ri, -si).quadraticCurveTo(si, -si, si, -si + ri);
-    hole.lineTo(si, si - ri).quadraticCurveTo(si, si, si - ri, si);
-    hole.lineTo(-si + ri, si).quadraticCurveTo(-si, si, -si, si - ri);
-    hole.lineTo(-si, -si + ri).quadraticCurveTo(-si, -si, -si + ri, -si);
-    outer.holes.push(hole);
+  const vertices = [
+    // Outer bottom: 0-3
+    -s, yBot, s,
+    s, yBot, s,
+    s, yBot, -s,
+    -s, yBot, -s,
+    // Outer flare: 4-7
+    -sTop, yFlare, sTop,
+    sTop, yFlare, sTop,
+    sTop, yFlare, -sTop,
+    -sTop, yFlare, -sTop,
+    // Outer top: 8-11
+    -sTop, yTop, sTop,
+    sTop, yTop, sTop,
+    sTop, yTop, -sTop,
+    -sTop, yTop, -sTop,
+    // Inner top: 12-15
+    -s, yTop, s,
+    s, yTop, s,
+    s, yTop, -s,
+    -s, yTop, -s,
+  ];
+
+  const indices = [];
+  const addQuad = (a, b, c, d) => {
+    indices.push(a, b, c, a, c, d);
+  };
+
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4;
+    // 45 deg chamfer flare
+    addQuad(i, j, 4 + j, 4 + i);
+    // Outer vertical band
+    addQuad(4 + i, 4 + j, 8 + j, 8 + i);
+    // Top flat rim
+    addQuad(12 + i, 8 + i, 8 + j, 12 + j);
+    // Inner vertical wall
+    addQuad(12 + j, 12 + i, i, j);
   }
 
-  const wallGeom = new THREE.ExtrudeGeometry(outer, { depth: height, bevelEnabled: false });
-  wallGeom.translate(0, 0, -height / 2);
-  wallGeom.rotateX(-Math.PI / 2);
-
-  const innerGeom = new THREE.ExtrudeGeometry(outer, { depth: height - bottomThick, bevelEnabled: false });
-  innerGeom.translate(0, 0, -(height - bottomThick) / 2);
-  innerGeom.rotateX(-Math.PI / 2);
-  innerGeom.translate(0, bottomThick, 0);
-
-  const cap = new THREE.Shape();
-  cap.moveTo(-s + r, -s);
-  cap.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
-  cap.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
-  cap.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
-  cap.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
-  const bottomGeom = new THREE.ExtrudeGeometry(cap, { depth: bottomThick, bevelEnabled: false });
-  bottomGeom.rotateX(-Math.PI / 2);
-  bottomGeom.translate(0, -height / 2, 0);
-
-  return mergeGeoms([wallGeom, innerGeom, bottomGeom]);
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+  return geom;
 }
 
-function makeSquareBaseGeom(outerSize, baseExt, baseH, cornerR, wallHeight) {
+function makeSquareBaseGeom(outerSize, baseExt, baseH, cornerR) {
   const s = outerSize / 2 + baseExt;
   const r = Math.min(cornerR, s);
   const shape = new THREE.Shape();
@@ -164,43 +174,137 @@ function makeSquareBaseGeom(outerSize, baseExt, baseH, cornerR, wallHeight) {
   shape.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
   const g = new THREE.ExtrudeGeometry(shape, { depth: baseH, bevelEnabled: false });
   g.rotateX(-Math.PI / 2);
-  g.translate(0, -wallHeight / 2 - baseH, 0);
+  g.translate(0, -baseH, 0);
   g.computeVertexNormals();
   return g;
 }
 
-function makeSquareCrenGeoms(outerSize, wallThick, height, numCren, crenH, crenWRatio) {
+function makeSquareCrenGeoms(outerSize, wallThick, height, numCren, crenH, crenWRatio, topExt = 0) {
   const s = outerSize / 2;
-  const hh = height / 2;
-  const wallCenter = s - wallThick / 2;
-  const boxes = [];
-  const sides = [
-    { x: 1, z: 0 },
-    { x: 0, z: -1 },
-    { x: -1, z: 0 },
-    { x: 0, z: 1 },
+  const sTop = s + (topExt > 0 ? topExt : 0);
+  const sInner = s - wallThick;
+  const parapetThick = sTop - sInner;
+  const dCoping = Math.min(crenH * 0.4, parapetThick * 0.45, 4.0);
+
+  const numMid = Math.max(1, Math.floor(numCren / 4));
+  const rRatio = THREE.MathUtils.clamp(crenWRatio, 0.2, 0.85);
+
+  const totalLen = 2 * sTop;
+  let lCorner = Math.max((totalLen * rRatio) / (2 + numMid), parapetThick + 2.5);
+  lCorner = Math.min(lCorner, sTop - 4);
+  const remaining = totalLen - 2 * lCorner;
+  const lMerlon = (remaining * rRatio) / numMid;
+  const wGap = (remaining * (1 - rRatio)) / (numMid + 1);
+
+  const geoms = [];
+
+  // 1. Build L-Corner merlon at (+sTop, +sTop) with 45° coping chamfer
+  const xOut = sTop, zOut = sTop;
+  const xIn = sInner, zIn = sInner;
+  const xEnd = sTop - lCorner, zEnd = sTop - lCorner;
+  const xCh = sTop - dCoping, zCh = sTop - dCoping;
+  const y0 = height;
+  const y1 = height + crenH - dCoping;
+  const y2 = height + crenH;
+
+  const cornerVerts = [
+    // Bottom (y0): 0..5
+    xEnd, y0, zIn,    // 0
+    xIn,  y0, zIn,    // 1
+    xIn,  y0, zEnd,   // 2
+    xOut, y0, zEnd,   // 3
+    xOut, y0, zOut,   // 4
+    xEnd, y0, zOut,   // 5
+    // Top flat (y2): 6..11
+    xEnd, y2, zIn,    // 6
+    xIn,  y2, zIn,    // 7
+    xIn,  y2, zEnd,   // 8
+    xCh,  y2, zEnd,   // 9
+    xCh,  y2, zCh,    // 10
+    xEnd, y2, zCh,    // 11
+    // Chamfer lower edge (y1): 12..14
+    xEnd, y1, zOut,   // 12
+    xOut, y1, zOut,   // 13
+    xOut, y1, zEnd,   // 14
   ];
-  const perSide = Math.max(1, Math.floor(numCren / 4));
-  const segLen = (outerSize - wallThick * 2) / perSide;
-  const crenW = segLen * THREE.MathUtils.clamp(crenWRatio, 0.1, 0.95);
-  sides.forEach((side) => {
-    for (let i = 0; i < perSide; i++) {
-      const t = (i - (perSide - 1) / 2) * segLen;
-      const g = new THREE.BoxGeometry(wallThick, crenH, crenW);
-      let px, pz;
-      if (side.x !== 0) {
-        px = side.x * wallCenter;
-        pz = t;
-        g.rotateY(side.x > 0 ? Math.PI / 2 : -Math.PI / 2);
-      } else {
-        px = t;
-        pz = side.z * wallCenter;
-      }
-      g.translate(px, hh + crenH / 2, pz);
-      boxes.push(g);
+
+  const cornerIndices = [
+    // Bottom (normal -Y):
+    0, 1, 5,   1, 4, 5,   1, 3, 4,   1, 2, 3,
+    // Top flat (normal +Y):
+    6, 11, 7,  11, 10, 7, 7, 10, 8,  10, 9, 8,
+    // Inner vertical face 1 (z = zIn, normal -Z):
+    0, 6, 1,   1, 6, 7,
+    // Inner vertical face 2 (x = xIn, normal -X):
+    2, 1, 8,   1, 7, 8,
+    // Gap end face 1 (x = xEnd, normal -X):
+    0, 5, 6,   5, 11, 6,  5, 12, 11,
+    // Gap end face 2 (z = zEnd, normal -Z):
+    2, 8, 3,   3, 8, 9,   3, 9, 14,
+    // Outer vertical face 1 (z = zOut, normal +Z):
+    5, 4, 12,  4, 13, 12,
+    // Outer vertical face 2 (x = xOut, normal +X):
+    4, 3, 13,  3, 14, 13,
+    // Chamfer face 1 (sloping along outer Z):
+    11, 12, 10,  10, 12, 13,
+    // Chamfer face 2 (sloping along outer X):
+    10, 13, 9,   9, 13, 14,
+  ];
+
+  const baseCornerGeom = new THREE.BufferGeometry();
+  baseCornerGeom.setAttribute('position', new THREE.Float32BufferAttribute(cornerVerts, 3));
+  baseCornerGeom.setIndex(cornerIndices);
+  baseCornerGeom.computeVertexNormals();
+
+  for (let c = 0; c < 4; c++) {
+    const angle = (c * Math.PI) / 2;
+    const g = baseCornerGeom.clone();
+    g.rotateY(angle);
+    geoms.push(g);
+  }
+
+  // 2. Build intermediate straight merlons with 45° coping
+  for (let k = 0; k < numMid; k++) {
+    const xStart = -sTop + lCorner + (k + 1) * wGap + k * lMerlon;
+    const xEndM = xStart + lMerlon;
+
+    const midVerts = [
+      xStart, y0, sInner,
+      xStart, y0, sTop,
+      xStart, y1, sTop,
+      xStart, y2, sTop - dCoping,
+      xStart, y2, sInner,
+      xEndM,  y0, sInner,
+      xEndM,  y0, sTop,
+      xEndM,  y1, sTop,
+      xEndM,  y2, sTop - dCoping,
+      xEndM,  y2, sInner,
+    ];
+
+    const midIndices = [
+      0, 1, 4,   1, 3, 4,   1, 2, 3,
+      5, 9, 6,   6, 9, 8,   6, 8, 7,
+      0, 5, 1,   1, 5, 6,
+      1, 6, 2,   2, 6, 7,
+      2, 7, 3,   3, 7, 8,
+      3, 8, 4,   4, 8, 9,
+      4, 9, 0,   0, 9, 5,
+    ];
+
+    const baseMidGeom = new THREE.BufferGeometry();
+    baseMidGeom.setAttribute('position', new THREE.Float32BufferAttribute(midVerts, 3));
+    baseMidGeom.setIndex(midIndices);
+    baseMidGeom.computeVertexNormals();
+
+    for (let c = 0; c < 4; c++) {
+      const angle = (c * Math.PI) / 2;
+      const g = baseMidGeom.clone();
+      g.rotateY(angle);
+      geoms.push(g);
     }
-  });
-  return boxes;
+  }
+
+  return geoms;
 }
 
 function makeSquareTowerGeoms(outerSize, height, towerR, towerH) {
@@ -318,38 +422,125 @@ function makeHorseReliefGeom(w, h, depth) {
   return g;
 }
 
-function makeSquareBrickGeoms(outerSize, wallThick, height, brickDepth, brickW, brickH, gap) {
+function makeSquareBrickGeoms(outerSize, wallThick, height, corniceH, baseH, brickDepth) {
   const s = outerSize / 2;
-  const rows = Math.floor(height / (brickH + gap));
-  const cols = Math.floor((outerSize - wallThick) / (brickW + gap));
+  const Hwall = height - (corniceH > 0 ? corniceH : 0);
+  const Ystart = baseH > 0 ? baseH : 0;
+  const Hbricks = Hwall - Ystart;
+  if (Hbricks <= 10) return [];
+
+  const Nrows = Math.max(4, Math.round(Hbricks / 13));
+  const gap = 1.5;
+  const hRow = Hbricks / Nrows;
+  const hBrick = Math.max(2, hRow - gap);
+  const d = THREE.MathUtils.clamp(brickDepth, 0.5, 3.0);
+  const tBrick = d + 0.5;
+
+  const Nb = Math.max(2, Math.round((2 * s) / 26));
+  const lBrick = (2 * s - (Nb + 1) * gap) / Nb;
+
   const bricks = [];
-  const sides = [
-    { x: 0, z: 1 },
-    { x: 1, z: 0 },
-    { x: 0, z: -1 },
-    { x: -1, z: 0 },
-  ];
-  sides.forEach((side) => {
-    for (let r = 0; r < rows; r++) {
-      const y = -height / 2 + r * (brickH + gap) + brickH / 2;
-      const off = (r % 2) * ((brickW + gap) / 2);
-      for (let c = 0; c < cols; c++) {
-        const t = -(outerSize - wallThick) / 2 + c * (brickW + gap) + brickW / 2 + off;
-        const g = new THREE.BoxGeometry(brickW, brickH, brickDepth);
-        let px, pz;
-        if (side.x !== 0) {
-          px = side.x * (s - wallThick * 0.25);
-          pz = t;
-          g.rotateY(side.x > 0 ? Math.PI / 2 : -Math.PI / 2);
-        } else {
-          px = t;
-          pz = side.z * (s - wallThick * 0.25);
-        }
-        g.translate(px, y, pz);
+
+  for (let r = 0; r < Nrows; r++) {
+    const yCenter = Ystart + r * hRow + gap / 2 + hBrick / 2;
+    const isEven = r % 2 === 0;
+
+    if (isEven) {
+      // Face 0 (+Z):
+      for (let i = 0; i < Nb; i++) {
+        const x0 = -s + gap + i * (lBrick + gap);
+        const x1 = (i === Nb - 1) ? s : x0 + lBrick;
+        const w = x1 - x0;
+        const g = new THREE.BoxGeometry(w, hBrick, tBrick);
+        g.translate((x0 + x1) / 2, yCenter, s - tBrick / 2);
+        bricks.push(g);
+      }
+      // Face 1 (+X):
+      for (let i = 0; i < Nb; i++) {
+        const z0 = s - gap - i * (lBrick + gap);
+        const z1 = (i === Nb - 1) ? -s : z0 - lBrick;
+        const w = Math.abs(z0 - z1);
+        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
+        g.translate(s - tBrick / 2, yCenter, (z0 + z1) / 2);
+        bricks.push(g);
+      }
+      // Face 2 (-Z):
+      for (let i = 0; i < Nb; i++) {
+        const x0 = s - gap - i * (lBrick + gap);
+        const x1 = (i === Nb - 1) ? -s : x0 - lBrick;
+        const w = Math.abs(x0 - x1);
+        const g = new THREE.BoxGeometry(w, hBrick, tBrick);
+        g.translate((x0 + x1) / 2, yCenter, -s + tBrick / 2);
+        bricks.push(g);
+      }
+      // Face 3 (-X):
+      for (let i = 0; i < Nb; i++) {
+        const z0 = -s + gap + i * (lBrick + gap);
+        const z1 = (i === Nb - 1) ? s : z0 + lBrick;
+        const w = z1 - z0;
+        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
+        g.translate(-s + tBrick / 2, yCenter, (z0 + z1) / 2);
+        bricks.push(g);
+      }
+    } else {
+      // Odd row: Staggered by half-brick
+      const halfL = Math.max(2, (lBrick - gap) / 2);
+
+      // Face 0 (+Z):
+      const g0 = new THREE.BoxGeometry(halfL, hBrick, tBrick);
+      g0.translate(-s + gap + halfL / 2, yCenter, s - tBrick / 2);
+      bricks.push(g0);
+
+      for (let i = 0; i < Nb - 1; i++) {
+        const x0 = -s + gap + halfL + gap + i * (lBrick + gap);
+        const g = new THREE.BoxGeometry(lBrick, hBrick, tBrick);
+        g.translate(x0 + lBrick / 2, yCenter, s - tBrick / 2);
+        bricks.push(g);
+      }
+
+      const lastX0 = s - gap - halfL;
+      const gLast = new THREE.BoxGeometry(halfL, hBrick, tBrick);
+      gLast.translate(lastX0 + halfL / 2, yCenter, s - tBrick / 2);
+      bricks.push(gLast);
+
+      // Face 1 (+X): wraps corner (+s, +s)
+      for (let i = 0; i < Nb; i++) {
+        const z0 = s - i * (lBrick + gap);
+        const z1 = (i === Nb - 1) ? -s + gap : z0 - lBrick;
+        const w = Math.abs(z0 - z1);
+        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
+        g.translate(s - tBrick / 2, yCenter, (z0 + z1) / 2);
+        bricks.push(g);
+      }
+
+      // Face 2 (-Z):
+      const g2_0 = new THREE.BoxGeometry(halfL, hBrick, tBrick);
+      g2_0.translate(s - gap - halfL / 2, yCenter, -s + tBrick / 2);
+      bricks.push(g2_0);
+
+      for (let i = 0; i < Nb - 1; i++) {
+        const x0 = s - gap - halfL - gap - i * (lBrick + gap);
+        const g = new THREE.BoxGeometry(lBrick, hBrick, tBrick);
+        g.translate(x0 - lBrick / 2, yCenter, -s + tBrick / 2);
+        bricks.push(g);
+      }
+
+      const g2_last = new THREE.BoxGeometry(halfL, hBrick, tBrick);
+      g2_last.translate(-s + gap + halfL / 2, yCenter, -s + tBrick / 2);
+      bricks.push(g2_last);
+
+      // Face 3 (-X): wraps corner (-s, -s)
+      for (let i = 0; i < Nb; i++) {
+        const z0 = -s + i * (lBrick + gap);
+        const z1 = (i === Nb - 1) ? s - gap : z0 + lBrick;
+        const w = z1 - z0;
+        const g = new THREE.BoxGeometry(tBrick, hBrick, w);
+        g.translate(-s + tBrick / 2, yCenter, (z0 + z1) / 2);
         bricks.push(g);
       }
     }
-  });
+  }
+
   return bricks;
 }
 
@@ -531,8 +722,14 @@ const CastlePencilCase = ({
       }
       yPos = castleTextPosition === 'cornice' ? height - corniceHeight / 2 : height / 2;
     } else {
-      radius = outerSize / 2 + castleTextDepth / 2 + 0.1;
-      yPos = 0;
+      const s = outerSize / 2;
+      if (castleTextPosition === 'cornice') {
+        radius = s + topExtension + castleTextDepth / 2 + 0.1;
+        yPos = height - corniceHeight / 2;
+      } else {
+        radius = s + castleTextDepth / 2 + 0.1;
+        yPos = height / 2;
+      }
     }
 
     if (isCylinder) {
@@ -588,56 +785,93 @@ const CastlePencilCase = ({
   }, [castleText, castleFont, castleTextHeight, castleTextDepth, castleTextSpacing, castleTextPosition, 
       isCylinder, outerDiameter, outerSize, height, topExtension, corniceHeight, wallThickness, font]);
 
-  /* --- body --- */
-  const outerGeom = useMemo(() => {
-    if (isCylinder) {
-      const outerR = outerDiameter / 2;
-      const g = new THREE.CylinderGeometry(outerR, outerR, height, SEG);
-      g.translate(0, height / 2, 0);
-      g.computeVertexNormals();
-      return g;
-    } else {
-      const s = outerSize / 2;
-      const r = Math.min(cornerRadius, s);
-      const shape = new THREE.Shape();
-      shape.moveTo(-s + r, -s);
-      shape.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
-      shape.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
-      shape.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
-      shape.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
-      const g = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: false });
-      g.rotateX(-Math.PI / 2);
-      g.translate(0, -height / 2, 0);
-      g.computeVertexNormals();
-      return g;
-    }
-  }, [isCylinder, outerDiameter, outerSize, height, cornerRadius]);
-
-  const innerGeom = useMemo(() => {
-    const innerH = height - bottomThickness;
+  /* --- body (manifold hollow geometry) --- */
+  const bodyGeom = useMemo(() => {
+    const wallH = height - bottomThickness;
+    let allGeoms = [];
     if (isCylinder) {
       const outerR = outerDiameter / 2;
       const innerR = Math.max(0.5, outerR - wallThickness);
-      const g = new THREE.CylinderGeometry(innerR, innerR, innerH, SEG);
-      g.translate(0, innerH / 2, 0);
-      g.computeVertexNormals();
-      return g;
+
+      // Floor: solid circle extruded from Y=0 to Y=bottomThickness
+      const floorShape = new THREE.Shape();
+      floorShape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+      const floorGeom = new THREE.ExtrudeGeometry(floorShape, { depth: bottomThickness, bevelEnabled: false });
+      floorGeom.rotateX(-Math.PI / 2);
+
+      // Walls: ring (outer circle with inner hole) extruded from Y=bottomThickness to Y=height
+      const wallShape = new THREE.Shape();
+      wallShape.absarc(0, 0, outerR, 0, Math.PI * 2, false);
+      const holePath = new THREE.Path();
+      holePath.absarc(0, 0, innerR, 0, Math.PI * 2, true);
+      wallShape.holes.push(holePath);
+      const wallGeom = new THREE.ExtrudeGeometry(wallShape, { depth: wallH, bevelEnabled: false });
+      wallGeom.rotateX(-Math.PI / 2);
+      wallGeom.translate(0, bottomThickness, 0);
+
+      allGeoms = [floorGeom, wallGeom];
     } else {
-      const si = (outerSize - 2 * wallThickness) / 2;
-      const ri = Math.max(0.5, cornerRadius - wallThickness);
-      const shape = new THREE.Shape();
-      shape.moveTo(-si + ri, -si);
-      shape.lineTo(si - ri, -si).quadraticCurveTo(si, -si, si, -si + ri);
-      shape.lineTo(si, si - ri).quadraticCurveTo(si, si, si - ri, si);
-      shape.lineTo(-si + ri, si).quadraticCurveTo(-si, si, -si, si - ri);
-      shape.lineTo(-si, -si + ri).quadraticCurveTo(-si, -si, -si + ri, -si);
-      const g = new THREE.ExtrudeGeometry(shape, { depth: innerH, bevelEnabled: false });
-      g.rotateX(-Math.PI / 2);
-      g.translate(0, -height / 2, 0);
-      g.computeVertexNormals();
-      return g;
+      const s = outerSize / 2;
+      const si = Math.max(1, s - wallThickness);
+      const r = Math.min(cornerRadius, s);
+      const ri = Math.max(0, r - wallThickness);
+
+      // Floor: solid rounded square extruded from Y=0 to Y=bottomThickness
+      const floorShape = new THREE.Shape();
+      floorShape.moveTo(-s + r, -s);
+      floorShape.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
+      floorShape.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
+      floorShape.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
+      floorShape.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
+      const floorGeom = new THREE.ExtrudeGeometry(floorShape, { depth: bottomThickness, bevelEnabled: false });
+      floorGeom.rotateX(-Math.PI / 2);
+
+      // Wall profile: if embossedBricks is true, core wall acts as mortar bed of size s - brickDepth
+      const bOffset = embossedBricks ? Math.min(brickDepth, 2.5) : 0;
+      const cH = topExtension > 0 ? corniceHeight : 0;
+      const lowerWallH = Math.max(10, wallH - cH);
+
+      const wallShapeLower = new THREE.Shape();
+      const sLow = s - bOffset;
+      const rLow = Math.min(r, sLow);
+      wallShapeLower.moveTo(-sLow + rLow, -sLow);
+      wallShapeLower.lineTo(sLow - rLow, -sLow).quadraticCurveTo(sLow, -sLow, sLow, -sLow + rLow);
+      wallShapeLower.lineTo(sLow, sLow - rLow).quadraticCurveTo(sLow, sLow, sLow - rLow, sLow);
+      wallShapeLower.lineTo(-sLow + rLow, sLow).quadraticCurveTo(-sLow, sLow, -sLow, sLow - rLow);
+      wallShapeLower.lineTo(-sLow, -sLow + rLow).quadraticCurveTo(-sLow, -sLow, -sLow + rLow, -sLow);
+
+      const holePath = new THREE.Path();
+      holePath.moveTo(-si + ri, -si);
+      holePath.lineTo(si - ri, -si).quadraticCurveTo(si, -si, si, -si + ri);
+      holePath.lineTo(si, si - ri).quadraticCurveTo(si, si, si - ri, si);
+      holePath.lineTo(-si + ri, si).quadraticCurveTo(-si, si, -si, si - ri);
+      holePath.lineTo(-si, -si + ri).quadraticCurveTo(-si, -si, -si + ri, -si);
+      wallShapeLower.holes.push(holePath);
+
+      const wallGeomLower = new THREE.ExtrudeGeometry(wallShapeLower, { depth: lowerWallH, bevelEnabled: false });
+      wallGeomLower.rotateX(-Math.PI / 2);
+      wallGeomLower.translate(0, bottomThickness, 0);
+
+      allGeoms = [floorGeom, wallGeomLower];
+
+      // Upper wall section under cornice (if cornice height > 0)
+      if (cH > 0) {
+        const wallShapeUpper = new THREE.Shape();
+        wallShapeUpper.moveTo(-s + r, -s);
+        wallShapeUpper.lineTo(s - r, -s).quadraticCurveTo(s, -s, s, -s + r);
+        wallShapeUpper.lineTo(s, s - r).quadraticCurveTo(s, s, s - r, s);
+        wallShapeUpper.lineTo(-s + r, s).quadraticCurveTo(-s, s, -s, s - r);
+        wallShapeUpper.lineTo(-s, -s + r).quadraticCurveTo(-s, -s, -s + r, -s);
+        wallShapeUpper.holes.push(holePath);
+
+        const wallGeomUpper = new THREE.ExtrudeGeometry(wallShapeUpper, { depth: cH, bevelEnabled: false });
+        wallGeomUpper.rotateX(-Math.PI / 2);
+        wallGeomUpper.translate(0, bottomThickness + lowerWallH, 0);
+        allGeoms.push(wallGeomUpper);
+      }
     }
-  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius]);
+    return mergeGeoms(allGeoms);
+  }, [isCylinder, outerDiameter, outerSize, wallThickness, height, bottomThickness, cornerRadius, topExtension, corniceHeight, embossedBricks, brickDepth]);
 
   /* --- base --- */
   const baseGeom = useMemo(() => {
@@ -645,16 +879,20 @@ const CastlePencilCase = ({
     if (isCylinder) {
       return makeCylinderBaseGeom(outerDiameter / 2, baseExtension, baseHeight);
     } else {
-      return makeSquareBaseGeom(outerSize, baseExtension, baseHeight, cornerRadius, height);
+      return makeSquareBaseGeom(outerSize, baseExtension, baseHeight, cornerRadius);
     }
-  }, [isCylinder, outerDiameter, outerSize, baseExtension, baseHeight, cornerRadius, height]);
+  }, [isCylinder, outerDiameter, outerSize, baseExtension, baseHeight, cornerRadius]);
 
-  /* --- cornice ledge (cylinder only) --- */
+  /* --- cornice ledge (both cylinder and square) --- */
   const corniceGeom = useMemo(() => {
-    if (!isCylinder || topExtension <= 0) return null;
-    const outerR = outerDiameter / 2;
-    return makeCorniceGeom(outerR, topExtension, corniceHeight, SEG);
-  }, [isCylinder, outerDiameter, topExtension, corniceHeight]);
+    if (topExtension <= 0 || corniceHeight <= 0) return null;
+    if (isCylinder) {
+      const outerR = outerDiameter / 2;
+      return makeCorniceGeom(outerR, topExtension, corniceHeight, SEG);
+    } else {
+      return makeSquareCorniceGeom(outerSize, topExtension, corniceHeight);
+    }
+  }, [isCylinder, outerDiameter, outerSize, topExtension, corniceHeight]);
 
   const corniceMesh = useMemo(() => {
     if (!corniceGeom) return null;
@@ -673,14 +911,14 @@ const CastlePencilCase = ({
       const innerR = Math.max(0.5, outerR - wallThickness);
       const geoms = makeCylinderCrenGeoms(topR, innerR, height, numCrenellations, crenellationHeight, crenellationWidth);
       return geoms.map((g, i) => (
-        <mesh key={`cren-c-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow position={[0, 0.1, 0]}>
+        <mesh key={`cren-c-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
         </mesh>
       ));
     } else {
-      const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth);
+      const geoms = makeSquareCrenGeoms(outerSize, wallThickness, height, numCrenellations, crenellationHeight, crenellationWidth, topExtension);
       return geoms.map((g, i) => (
-        <mesh key={`cren-s-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow position={[0, 0.1, 0]}>
+        <mesh key={`cren-s-${i}-${showBrickTexture}`} geometry={g} name={`Crenellation_${i}`} receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} map={brickTex} />
         </mesh>
       ));
@@ -711,14 +949,16 @@ const CastlePencilCase = ({
         </mesh>
       ));
     } else {
-      const geoms = makeSquareBrickGeoms(outerSize, wallThickness, height, brickDepth, bw, bh, gap);
-      return geoms.map((g, i) => (
-        <mesh key={`brick-s-${i}`} geometry={g} name={`Brick_${i}`} receiveShadow castShadow>
+      const geoms = makeSquareBrickGeoms(outerSize, wallThickness, height, corniceHeight, baseHeight, brickDepth);
+      if (!geoms || geoms.length === 0) return null;
+      const merged = mergeGeoms(geoms);
+      return (
+        <mesh key={`brick-s-${outerSize}-${height}`} geometry={merged} name="CastleBricks" receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.85} map={brickTex} />
         </mesh>
-      ));
+      );
     }
-  }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, brickDepth, showBrickTexture, materialColor, texProps]);
+  }, [embossedBricks, isCylinder, outerDiameter, outerSize, wallThickness, height, corniceHeight, baseHeight, brickDepth, showBrickTexture, materialColor, texProps]);
 
   const reliefGeom = useMemo(() => {
     if (!showCastleRelief) return null;
@@ -736,12 +976,13 @@ const CastlePencilCase = ({
 
   /* --- castle relief --- */
   const castleReliefMesh = useMemo(() => {
-    if (!showCastleRelief || reliefMode !== 'emboss' || !reliefGeom) return null;
+    if (!showCastleRelief || !reliefGeom) return null;
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
-    const bottomY = isCylinder ? 0 : -height / 2;
+    const bottomY = 0;
     const posY = bottomY + height * 0.48;
+    const offset = reliefMode === 'emboss' ? 0.1 : -0.3;
     return (
-      <group key={`relief-${showBrickTexture}`} position={[0, posY, frontZ]}>
+      <group key={`relief-${showBrickTexture}-${reliefMode}`} position={[0, posY, frontZ + offset]}>
         <mesh geometry={reliefGeom} name="CastleRelief" receiveShadow castShadow>
           <meshStandardMaterial color={materialColor} roughness={0.75} map={brickTex} />
         </mesh>
@@ -757,7 +998,7 @@ const CastlePencilCase = ({
     const openGeom = makeArchedGeom(doorWidth, doorHeight, openDepth);
     const frameGeom = makeFrameGeom(doorWidth, doorHeight, 3, frameDepth, true);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
-    const bottomY = isCylinder ? 0 : -height / 2;
+    const bottomY = 0;
     const posY = bottomY + bottomThickness + doorHeight;
     return (
       <group key={`door-${showBrickTexture}`} position={[0, posY, frontZ]}>
@@ -780,7 +1021,7 @@ const CastlePencilCase = ({
     const openBase = makeOpen(windowWidth, windowHeight, openDepth);
     const frameBase = makeFrameGeom(windowWidth, windowHeight, 2.5, frameDepth, windowArched);
     const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
-    const bottomY = isCylinder ? 0 : -height / 2;
+    const bottomY = 0;
     const winY = bottomY + height * 0.6;
     const meshes = [];
 
@@ -876,36 +1117,21 @@ const CastlePencilCase = ({
 
   const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
   const bottomY = isCylinder ? 0 : -height / 2;
-  const showEngravedRelief = showCastleRelief && reliefMode === 'engrave';
 
   return (
     <group ref={groupRef} name="CastlePencilCase">
-      <mesh name="CastleBody" material={wallMat} receiveShadow castShadow>
-        <Geometry>
-          <Base geometry={outerGeom} />
-          <Subtraction
-            geometry={innerGeom}
-            position={[0, bottomThickness, 0]}
-          />
-          {showEngravedRelief && reliefGeomForCSG && (
-            <Subtraction
-              geometry={reliefGeomForCSG}
-              position={[0, bottomY + height * 0.48, frontZ - castleReliefDepth]}
-            />
-          )}
-        </Geometry>
-      </mesh>
+      <mesh name="CastleBody" geometry={bodyGeom} material={wallMat} receiveShadow castShadow />
       {baseHeight > 0 && baseGeom && (
         <mesh geometry={baseGeom} name="CastleBase" material={wallMat} receiveShadow castShadow />
       )}
       {corniceMesh}
+      {crenMeshes}
       {topRing}
       {towerMeshes}
       {brickMeshes}
       {castleReliefMesh}
       {doorMesh}
       {windowMeshes}
-      {crenMeshes}
       {castleTextGeom && isCylinder && Array.isArray(castleTextGeom) && castleTextGeom.map((charData, i) => (
         <mesh
           key={`castle-text-${i}`}
