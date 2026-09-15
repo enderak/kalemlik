@@ -15,11 +15,13 @@ const PhotoStand = ({
   photoHeight = 45,      // mm – fotoğraf yüksekliği
   frameThickness = 2.5,  // mm – kenar çerçeve genişliği
   frameDepth = 3.5,      // mm – öne doğru toplam çıkıntı/kalınlık
+  backPlateThickness = 4.0, // mm – çerçevenin arka duvar kalınlığı (ayarlanabilir, sur gibi tok durur)
   distance = 0,          // mm – kalemliğe olan mesafe (0 = tam yaslanmış)
   tilt = 10,             // derece – geriye doğru yatıklık açısı
   hasCrenellations = true, // üst surlar / mazgallar
   numCrenellations = 4,    // sur diş sayısı
   crenellationHeight = 6,  // sur yüksekliği (mm)
+  crenellationAlignment = 'center', // 'front' | 'center' | 'back'
   position = 'front',    // 'side' | 'front'
   outerDiameter = 100,   // mm – silindirik kalemlik dış çapı
   outerSize = 100,       // mm – kare kalemlik dış boyutu
@@ -35,9 +37,13 @@ const PhotoStand = ({
   const totalW = photoWidth + frameThickness * 2;
   const totalH = photoHeight + frameThickness; // Altta ray var, üst açık
 
-  const backPlateThick = 1.6; // mm
+  // Arka plaka kalınlığı (kullanıcının ayarladığı değer, min 1.5mm)
+  const backPlateThick = Math.max(1.5, backPlateThickness);
+  // Fotoğraf yuvası boşluğu (derinlik)
   const slotDepth = 1.0; // mm
-  const frontLipThick = Math.max(0.8, frameDepth - backPlateThick - slotDepth);
+  // Çerçevenin toplam ön derinliği (rayların çıkıntısı)
+  const effectiveFrameDepth = Math.max(frameDepth, 3.0);
+  const frontLipThick = Math.max(0.8, effectiveFrameDepth - slotDepth);
   const lipWidth = frameThickness;
 
   const mat = useMemo(
@@ -50,50 +56,68 @@ const PhotoStand = ({
     [materialColor]
   );
 
-  // 1. Arka Destek Levhası
+  // 1. Arka Destek Levhası (Z ekseninde 0'dan -backPlateThick yönüne doğru arkaya uzanır)
+  // Böylece Z = 0 fotoğrafın arkasının dayandığı iç yüzey kalır.
   const backGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(totalW, totalH, backPlateThick);
-    g.translate(0, totalH / 2, backPlateThick / 2);
+    g.translate(0, totalH / 2, -backPlateThick / 2);
     return g;
   }, [totalW, totalH, backPlateThick]);
 
-  // 2. Alt Destek Rayı
+  // 2. Alt Destek Rayı (Z ekseninde 0'dan +effectiveFrameDepth yönüne doğru öne uzanır)
   const bottomRailGeom = useMemo(() => {
-    const g = new THREE.BoxGeometry(totalW, frameThickness, frameDepth);
-    g.translate(0, frameThickness / 2, frameDepth / 2);
+    const g = new THREE.BoxGeometry(totalW, frameThickness, effectiveFrameDepth);
+    g.translate(0, frameThickness / 2, effectiveFrameDepth / 2);
     return g;
-  }, [totalW, frameThickness, frameDepth]);
+  }, [totalW, frameThickness, effectiveFrameDepth]);
 
   // 3. Sol ve Sağ Yan Raylar
   const sideRailGeom = useMemo(() => {
-    const g = new THREE.BoxGeometry(frameThickness, totalH, frameDepth);
-    g.translate(0, totalH / 2, frameDepth / 2);
+    const g = new THREE.BoxGeometry(frameThickness, totalH, effectiveFrameDepth);
+    g.translate(0, totalH / 2, effectiveFrameDepth / 2);
     return g;
-  }, [frameThickness, totalH, frameDepth]);
+  }, [frameThickness, totalH, effectiveFrameDepth]);
 
   // 4. Ön Tutucu Tırnaklar (U profil)
   const frontLipSideGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(lipWidth, totalH, frontLipThick);
-    g.translate(0, totalH / 2, frameDepth - frontLipThick / 2);
+    g.translate(0, totalH / 2, effectiveFrameDepth - frontLipThick / 2);
     return g;
-  }, [lipWidth, totalH, frontLipThick, frameDepth]);
+  }, [lipWidth, totalH, frontLipThick, effectiveFrameDepth]);
 
   const frontLipBottomGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(totalW, lipWidth, frontLipThick);
-    g.translate(0, lipWidth / 2, frameDepth - frontLipThick / 2);
+    g.translate(0, lipWidth / 2, effectiveFrameDepth - frontLipThick / 2);
     return g;
-  }, [totalW, lipWidth, frontLipThick, frameDepth]);
+  }, [totalW, lipWidth, frontLipThick, effectiveFrameDepth]);
 
   // 5. Üst Surlar / Mazgallar (Crenellations)
-  // Arka plakanın üst ucundan (Y = totalH) yukarıya uzanan kale surları
+  // Arka plakanın üst ucundan (Y = totalH) yukarıya uzanan kale surları.
+  // Z ekseninde kalınlığı backPlateThick kadar olur (tok sur görünümü).
+  // crenellationAlignment:
+  // - 'back': Tam arka plakanın üstüne hizalı (-backPlateThick ile 0 arası)
+  // - 'center': Arka plaka ile ön rayın toplam derinliğinin tam ortasına hizalı
+  // - 'front': Ön çerçeve/ray hizasına doğru hizalı (0 ile effectiveFrameDepth arası)
   const crenellationsData = useMemo(() => {
     if (!hasCrenellations || numCrenellations < 1 || crenellationHeight <= 0) return null;
     const n = Math.max(1, Math.round(numCrenellations));
-    // Dişler ve aralarındaki boşluklar: n diş + (n-1) boşluk = 2n - 1 birim
     const unitWidth = totalW / (2 * n - 1);
     const toothWidth = unitWidth;
-    const geom = new THREE.BoxGeometry(toothWidth, crenellationHeight, backPlateThick);
-    geom.translate(0, crenellationHeight / 2, backPlateThick / 2);
+
+    // Sur dişinin derinliği: arka plaka kalınlığı kadar veya en az 3mm
+    const toothDepth = Math.max(backPlateThick, 3.0);
+
+    let zOffset = -backPlateThick / 2; // varsayılan 'back'
+    if (crenellationAlignment === 'front') {
+      zOffset = toothDepth / 2; // öne hizalı
+    } else if (crenellationAlignment === 'center') {
+      // Arka yüzeyden ön yüzeye toplam derinlik ortası
+      const totalDepth = backPlateThick + effectiveFrameDepth;
+      zOffset = -backPlateThick + totalDepth / 2;
+    }
+
+    const geom = new THREE.BoxGeometry(toothWidth, crenellationHeight, toothDepth);
+    geom.translate(0, crenellationHeight / 2, zOffset);
 
     const positions = [];
     for (let i = 0; i < n; i++) {
@@ -101,7 +125,16 @@ const PhotoStand = ({
       positions.push([x, totalH, 0]);
     }
     return { geom, positions };
-  }, [hasCrenellations, numCrenellations, crenellationHeight, totalW, backPlateThick, totalH]);
+  }, [
+    hasCrenellations,
+    numCrenellations,
+    crenellationHeight,
+    totalW,
+    backPlateThick,
+    effectiveFrameDepth,
+    crenellationAlignment,
+    totalH,
+  ]);
 
   // 6. Bağlantı/Destek Kolu
   const bridgeGeom = useMemo(() => {
@@ -113,20 +146,21 @@ const PhotoStand = ({
       return g;
     } else {
       const bridgeLength = Math.max(distance + 2, 2);
-      const g = new THREE.BoxGeometry(bridgeLength, bridgeThick, frameDepth + 2);
-      g.translate(-bridgeLength / 2, bridgeThick / 2, (frameDepth + 2) / 2);
+      const g = new THREE.BoxGeometry(bridgeLength, bridgeThick, backPlateThick + effectiveFrameDepth + 2);
+      g.translate(-bridgeLength / 2, bridgeThick / 2, (effectiveFrameDepth - backPlateThick) / 2);
       return g;
     }
-  }, [position, distance, baseHeight, totalW, frameDepth]);
+  }, [position, distance, baseHeight, totalW, backPlateThick, effectiveFrameDepth]);
 
   // Konumlandırma Koordinatları:
   let standPosition = [0, 0, 0];
 
   if (position === 'front') {
-    // ÖNDE: Çerçevenin arkası kalemliğin ön duvarına yaslanır
+    // ÖNDE: Çerçevenin en arka yüzeyi (Z = -backPlateThick) tam kalemliğin ön duvarına yaslanır.
+    // Yani grup pozisyonu Z = outerR + distance + backPlateThick
     const posX = 0;
     const posY = 0;
-    const posZ = outerR + distance;
+    const posZ = outerR + distance + backPlateThick;
     standPosition = [posX, posY, posZ];
   } else {
     // YANDA: Çerçevenin sol kenarı kalemliğin yan duvarına yaslanır

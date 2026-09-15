@@ -122,11 +122,13 @@ const App = () => {
   const [photoHeight, setPhotoHeight] = useState(45);
   const [standFrameThickness, setStandFrameThickness] = useState(2.5);
   const [standFrameDepth, setStandFrameDepth] = useState(5);
+  const [photoBackThickness, setPhotoBackThickness] = useState(4); // mm - çerçevenin arka duvar kalınlığı (varsayılan 4 mm sur görünümü için)
   const [photoDistance, setPhotoDistance] = useState(0); // mm - kalemliğe olan mesafe (0 = tam yaslanmış)
   const [photoTilt, setPhotoTilt] = useState(10); // derece - geriye doğru yatıklık açısı (0 = tam dik)
   const [photoHasCrenellations, setPhotoHasCrenellations] = useState(true); // Üst surlar/mazgallar
   const [photoNumCrenellations, setPhotoNumCrenellations] = useState(4); // Mazgal diş sayısı
   const [photoCrenellationHeight, setPhotoCrenellationHeight] = useState(6); // Mazgal yüksekliği (mm)
+  const [photoCrenellationAlignment, setPhotoCrenellationAlignment] = useState('center'); // 'center' | 'front' | 'back'
 
   const applyPresetChessRook = () => {
     setShape('cylinder');
@@ -1035,6 +1037,7 @@ const App = () => {
                 <Slider label={t('photo_height')} value={photoHeight} onChange={setPhotoHeight} min={25} max={200} step={1} />
                 <Slider label={t('stand_frame_thickness')} value={standFrameThickness} onChange={setStandFrameThickness} min={1} max={6} step={0.5} />
                 <Slider label={t('stand_frame_depth')} value={standFrameDepth} onChange={setStandFrameDepth} min={2} max={12} step={0.5} />
+                <Slider label={t('photo_back_thickness')} value={photoBackThickness} onChange={setPhotoBackThickness} min={1.5} max={15} step={0.5} />
                 <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={0} max={60} step={1} />
                 <Slider label={t('photo_tilt')} value={photoTilt} onChange={setPhotoTilt} min={-45} max={60} step={1} />
 
@@ -1056,7 +1059,28 @@ const App = () => {
                 {photoHasCrenellations && (
                   <>
                     <Slider label={t('photo_num_crenellations')} value={photoNumCrenellations} onChange={setPhotoNumCrenellations} min={2} max={10} step={1} />
-                    <Slider label={t('photo_crenellation_height')} value={photoCrenellationHeight} onChange={setPhotoCrenellationHeight} min={3} max={20} step={1} />
+                    <Slider label={t('photo_crenellation_height')} value={photoCrenellationHeight} onChange={setPhotoCrenellationHeight} min={3} max={25} step={1} />
+
+                    {/* Sur Hizalaması: Ön / Orta / Arka */}
+                    <div className="mb-4">
+                      <div className="text-xs text-slate-400 mb-1.5">{t('photo_crenellation_alignment')}</div>
+                      <div className="flex gap-1">
+                        {['front', 'center', 'back'].map((align) => (
+                          <button
+                            key={align}
+                            type="button"
+                            onClick={() => setPhotoCrenellationAlignment(align)}
+                            className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                              photoCrenellationAlignment === align
+                                ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
+                                : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
+                            }`}
+                          >
+                            {t(`photo_crenellation_align_${align}`)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </>
                 )}
               </>
@@ -1183,11 +1207,13 @@ const App = () => {
                   photoHeight={photoHeight}
                   frameThickness={standFrameThickness}
                   frameDepth={standFrameDepth}
+                  backPlateThickness={photoBackThickness}
                   distance={photoDistance}
                   tilt={photoTilt}
                   hasCrenellations={photoHasCrenellations}
                   numCrenellations={photoNumCrenellations}
                   crenellationHeight={photoCrenellationHeight}
+                  crenellationAlignment={photoCrenellationAlignment}
                   position={photoStandPosition}
                   outerDiameter={outerDiameter}
                   outerSize={outerSize}
