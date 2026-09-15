@@ -124,6 +124,8 @@ const resources = {
       "photo_crenellation_align_center": "Ortalı",
       "photo_crenellation_align_front": "Öne Hizalı",
       "photo_crenellation_align_back": "Arkaya Hizalı",
+      "photo_offset_front": "Sağ / Sol Kaydırma (mm)",
+      "photo_offset_side": "Ön / Arka Kaydırma (mm)",
       "export_stand_btn": "⬇ Fotoğraf Tutacağı STL",
     }
   },
@@ -249,6 +251,8 @@ const resources = {
       "photo_crenellation_align_center": "Centered",
       "photo_crenellation_align_front": "Front",
       "photo_crenellation_align_back": "Back",
+      "photo_offset_front": "Lateral Offset (Left / Right) (mm)",
+      "photo_offset_side": "Depth Offset (Front / Back) (mm)",
       "export_stand_btn": "⬇ Photo Stand STL",
     }
   },

@@ -17,6 +17,7 @@ const PhotoStand = ({
   frameDepth = 3.5,      // mm – öne doğru toplam çıkıntı/kalınlık
   backPlateThickness = 4.0, // mm – çerçevenin arka duvar kalınlığı (ayarlanabilir, sur gibi tok durur)
   distance = 0,          // mm – kalemliğe olan mesafe (0 = tam yaslanmış)
+  offset = 0,            // mm – yandayken ön/arka (Z), öndeyken sağ/sol (X) kaydırma
   tilt = 10,             // derece – geriye doğru yatıklık açısı
   hasCrenellations = true, // üst surlar / mazgallar
   numCrenellations = 4,    // sur diş sayısı
@@ -92,26 +93,18 @@ const PhotoStand = ({
   }, [totalW, lipWidth, frontLipThick, effectiveFrameDepth]);
 
   // 5. Üst Surlar / Mazgallar (Crenellations)
-  // Arka plakanın üst ucundan (Y = totalH) yukarıya uzanan kale surları.
-  // Z ekseninde kalınlığı backPlateThick kadar olur (tok sur görünümü).
-  // crenellationAlignment:
-  // - 'back': Tam arka plakanın üstüne hizalı (-backPlateThick ile 0 arası)
-  // - 'center': Arka plaka ile ön rayın toplam derinliğinin tam ortasına hizalı
-  // - 'front': Ön çerçeve/ray hizasına doğru hizalı (0 ile effectiveFrameDepth arası)
   const crenellationsData = useMemo(() => {
     if (!hasCrenellations || numCrenellations < 1 || crenellationHeight <= 0) return null;
     const n = Math.max(1, Math.round(numCrenellations));
     const unitWidth = totalW / (2 * n - 1);
     const toothWidth = unitWidth;
 
-    // Sur dişinin derinliği: arka plaka kalınlığı kadar veya en az 3mm
     const toothDepth = Math.max(backPlateThick, 3.0);
 
     let zOffset = -backPlateThick / 2; // varsayılan 'back'
     if (crenellationAlignment === 'front') {
       zOffset = toothDepth / 2; // öne hizalı
     } else if (crenellationAlignment === 'center') {
-      // Arka yüzeyden ön yüzeye toplam derinlik ortası
       const totalDepth = backPlateThick + effectiveFrameDepth;
       zOffset = -backPlateThick + totalDepth / 2;
     }
@@ -156,17 +149,20 @@ const PhotoStand = ({
   let standPosition = [0, 0, 0];
 
   if (position === 'front') {
-    // ÖNDE: Çerçevenin en arka yüzeyi (Z = -backPlateThick) tam kalemliğin ön duvarına yaslanır.
-    // Yani grup pozisyonu Z = outerR + distance + backPlateThick
-    const posX = 0;
+    // ÖNDE:
+    // X ekseni: Sağ / Sol kaydırma (offset)
+    // Z ekseni: Kalemliğin ön duvarına olan mesafe
+    const posX = offset;
     const posY = 0;
     const posZ = outerR + distance + backPlateThick;
     standPosition = [posX, posY, posZ];
   } else {
-    // YANDA: Çerçevenin sol kenarı kalemliğin yan duvarına yaslanır
+    // YANDA:
+    // X ekseni: Kalemliğin yan duvarına olan mesafe
+    // Z ekseni: Ön / Arka kaydırma (offset)
     const posX = outerR + distance + totalW / 2;
     const posY = 0;
-    const posZ = 0;
+    const posZ = offset;
     standPosition = [posX, posY, posZ];
   }
 

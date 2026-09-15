@@ -129,6 +129,7 @@ const App = () => {
   const [photoNumCrenellations, setPhotoNumCrenellations] = useState(4); // Mazgal diş sayısı
   const [photoCrenellationHeight, setPhotoCrenellationHeight] = useState(6); // Mazgal yüksekliği (mm)
   const [photoCrenellationAlignment, setPhotoCrenellationAlignment] = useState('center'); // 'center' | 'front' | 'back'
+  const [photoOffset, setPhotoOffset] = useState(0); // mm - yandayken ön/arka, öndeyken sağ/sol kaydırma
 
   const applyPresetChessRook = () => {
     setShape('cylinder');
@@ -1039,6 +1040,14 @@ const App = () => {
                 <Slider label={t('stand_frame_depth')} value={standFrameDepth} onChange={setStandFrameDepth} min={2} max={12} step={0.5} />
                 <Slider label={t('photo_back_thickness')} value={photoBackThickness} onChange={setPhotoBackThickness} min={1.5} max={15} step={0.5} />
                 <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={0} max={60} step={1} />
+                <Slider
+                  label={photoStandPosition === 'front' ? t('photo_offset_front') : t('photo_offset_side')}
+                  value={photoOffset}
+                  onChange={setPhotoOffset}
+                  min={-60}
+                  max={60}
+                  step={1}
+                />
                 <Slider label={t('photo_tilt')} value={photoTilt} onChange={setPhotoTilt} min={-45} max={60} step={1} />
 
                 {/* Surlar / Mazgallar Toggle ve Ayarları */}
@@ -1209,6 +1218,7 @@ const App = () => {
                   frameDepth={standFrameDepth}
                   backPlateThickness={photoBackThickness}
                   distance={photoDistance}
+                  offset={photoOffset}
                   tilt={photoTilt}
                   hasCrenellations={photoHasCrenellations}
                   numCrenellations={photoNumCrenellations}
