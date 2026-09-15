@@ -126,6 +126,11 @@ const resources = {
       "photo_crenellation_align_back": "Arkaya Hizalı",
       "photo_offset_front": "Sağ / Sol Kaydırma (mm)",
       "photo_offset_side": "Ön / Arka Kaydırma (mm)",
+      "photo_snap_center": "Ortala",
+      "photo_snap_front": "Öne Yasla (Silme)",
+      "photo_snap_back": "Arkaya Yasla (Silme)",
+      "photo_snap_left": "Sola Yasla (Silme)",
+      "photo_snap_right": "Sağa Yasla (Silme)",
       "export_stand_btn": "⬇ Fotoğraf Tutacağı STL",
     }
   },
@@ -253,6 +258,11 @@ const resources = {
       "photo_crenellation_align_back": "Back",
       "photo_offset_front": "Lateral Offset (Left / Right) (mm)",
       "photo_offset_side": "Depth Offset (Front / Back) (mm)",
+      "photo_snap_center": "Center",
+      "photo_snap_front": "Snap to Front (Flush)",
+      "photo_snap_back": "Snap to Back (Flush)",
+      "photo_snap_left": "Snap to Left (Flush)",
+      "photo_snap_right": "Snap to Right (Flush)",
       "export_stand_btn": "⬇ Photo Stand STL",
     }
   },

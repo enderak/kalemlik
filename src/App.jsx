@@ -1044,10 +1044,86 @@ const App = () => {
                   label={photoStandPosition === 'front' ? t('photo_offset_front') : t('photo_offset_side')}
                   value={photoOffset}
                   onChange={setPhotoOffset}
-                  min={-60}
-                  max={60}
+                  min={-100}
+                  max={100}
                   step={1}
                 />
+
+                {/* Silme Hizalama Butonları */}
+                <div className="flex gap-1.5 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setPhotoOffset(0)}
+                    className={`flex-1 py-1 rounded text-[10px] font-medium border transition-colors ${
+                      photoOffset === 0
+                        ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                        : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                    }`}
+                  >
+                    {t('photo_snap_center')}
+                  </button>
+
+                  {photoStandPosition === 'side' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Öne silme yasla: çerçevenin ön kenarı kalemliğin ön sınırı ile aynı hizada
+                          const caseDepth = shape === 'cylinder' ? outerDiameter : outerSize;
+                          const effectiveFrameDepth = Math.max(standFrameDepth, 3.0);
+                          const snapOffset = caseDepth / 2 - effectiveFrameDepth;
+                          setPhotoOffset(Math.round(snapOffset));
+                        }}
+                        className="flex-1 py-1 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        {t('photo_snap_front')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Arkaya silme yasla: çerçevenin arka kenarı kalemliğin arka sınırı ile aynı hizada
+                          const caseDepth = shape === 'cylinder' ? outerDiameter : outerSize;
+                          const backPlateThick = Math.max(1.5, photoBackThickness);
+                          const snapOffset = -(caseDepth / 2 - backPlateThick);
+                          setPhotoOffset(Math.round(snapOffset));
+                        }}
+                        className="flex-1 py-1 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        {t('photo_snap_back')}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Sola silme yasla: çerçevenin sol kenarı kalemliğin sol kenarı ile aynı hizada
+                          const caseWidth = shape === 'cylinder' ? outerDiameter : outerSize;
+                          const totalW = photoWidth + standFrameThickness * 2;
+                          const snapOffset = -(caseWidth / 2 - totalW / 2);
+                          setPhotoOffset(Math.round(snapOffset));
+                        }}
+                        className="flex-1 py-1 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        {t('photo_snap_left')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Sağa silme yasla: çerçevenin sağ kenarı kalemliğin sağ kenarı ile aynı hizada
+                          const caseWidth = shape === 'cylinder' ? outerDiameter : outerSize;
+                          const totalW = photoWidth + standFrameThickness * 2;
+                          const snapOffset = (caseWidth / 2 - totalW / 2);
+                          setPhotoOffset(Math.round(snapOffset));
+                        }}
+                        className="flex-1 py-1 rounded text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        {t('photo_snap_right')}
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 <Slider label={t('photo_tilt')} value={photoTilt} onChange={setPhotoTilt} min={-45} max={60} step={1} />
 
                 {/* Surlar / Mazgallar Toggle ve Ayarları */}
