@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
 import CastlePencilCase from './components/organisms/CastlePencilCase';
 import NamePencilCase from './components/organisms/NamePencilCase';
+import PhotoStand from './components/organisms/PhotoStand';
 import { useTranslation } from 'react-i18next';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
@@ -114,6 +115,16 @@ const App = () => {
   const [autoRepeat, setAutoRepeat] = useState(true);
   const [dotConnection, setDotConnection] = useState('ring');
 
+  // Photo stand states (shared between both modes)
+  const [hasPhotoStand, setHasPhotoStand] = useState(false);
+  const [photoStandPosition, setPhotoStandPosition] = useState('side'); // 'side' | 'front'
+  const [photoWidth, setPhotoWidth] = useState(35);
+  const [photoHeight, setPhotoHeight] = useState(45);
+  const [standFrameThickness, setStandFrameThickness] = useState(2.5);
+  const [standFrameDepth, setStandFrameDepth] = useState(5);
+  const [photoDistance, setPhotoDistance] = useState(0); // mm - kalemliğe olan mesafe (0 = tam yaslanmış)
+  const [photoTilt, setPhotoTilt] = useState(10); // derece - geriye doğru yatıklık açısı (0 = tam dik)
+
   const applyPresetChessRook = () => {
     setShape('cylinder');
     setOuterDiameter(100);
@@ -178,6 +189,7 @@ const App = () => {
   };
 
   const groupRef = useRef();
+  const standRef = useRef();
 
   const handleExport = () => {
     if (!groupRef.current) return;
@@ -222,6 +234,44 @@ const App = () => {
       parent.updateMatrixWorld(true);
     } else {
       groupRef.current.updateMatrixWorld(true);
+    }
+  };
+
+  const handleExportStand = () => {
+    if (!standRef.current) return;
+    const exporter = new STLExporter();
+
+    const origScale = standRef.current.scale.clone();
+    const origRot = standRef.current.rotation.clone();
+
+    // Reset local scale to 1.0 and rotate 90 degrees around X so Y-up maps to Z-up for 3D printers
+    standRef.current.scale.set(1, 1, 1);
+    standRef.current.rotation.set(Math.PI / 2, 0, 0);
+
+    const parent = standRef.current.parent;
+    let origParentScale = null;
+    if (parent) {
+      origParentScale = parent.scale.clone();
+      parent.scale.set(1, 1, 1);
+      parent.updateMatrixWorld(true);
+    } else {
+      standRef.current.updateMatrixWorld(true);
+    }
+
+    const result = exporter.parse(standRef.current, { binary: true });
+    const blob = new Blob([result], { type: 'application/octet-stream' });
+    const filename = `FotoTutacagi_${photoWidth}x${photoHeight}_${Date.now()}.stl`;
+    downloadBlob(blob, filename);
+
+    // Restore
+    standRef.current.scale.copy(origScale);
+    standRef.current.rotation.copy(origRot);
+
+    if (parent && origParentScale) {
+      parent.scale.copy(origParentScale);
+      parent.updateMatrixWorld(true);
+    } else {
+      standRef.current.updateMatrixWorld(true);
     }
   };
 
@@ -903,13 +953,107 @@ const App = () => {
             </>
           )}
 
-          {/* DOWNLOAD BUTTON */}
+          {/* ==================================== */}
+          {/* PHOTO STAND – HER İKİ MOD İÇİN ORTAK */}
+          {/* ==================================== */}
+          <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
+            <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-3 uppercase">
+              {t('photo_stand')}
+            </h2>
+
+            {/* Toggle */}
+            <label className="flex items-center gap-3 mb-4 cursor-pointer">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={hasPhotoStand}
+                  onChange={(e) => setHasPhotoStand(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+              </div>
+              <span className="text-sm text-slate-300">{t('photo_stand_toggle')}</span>
+            </label>
+
+            {hasPhotoStand && (
+              <>
+                {/* Konum seçici */}
+                <div className="mb-4">
+                  <div className="text-xs text-slate-400 mb-1.5">{t('photo_stand_position')}</div>
+                  <div className="flex gap-1">
+                    {['side', 'front'].map((pos) => (
+                      <button
+                        key={pos}
+                        type="button"
+                        onClick={() => setPhotoStandPosition(pos)}
+                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                          photoStandPosition === pos
+                            ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
+                            : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
+                        }`}
+                      >
+                        {t(`photo_stand_${pos}`)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Standart boyut presetleri */}
+                <div className="mb-4">
+                  <div className="text-[10px] text-slate-400 mb-2">{t('photo_size_presets')}</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => { setPhotoWidth(35); setPhotoHeight(45); }}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      3.5 × 4.5 cm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPhotoWidth(50); setPhotoHeight(70); }}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      5 × 7 cm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPhotoWidth(100); setPhotoHeight(150); }}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors col-span-2"
+                    >
+                      10 × 15 cm
+                    </button>
+                  </div>
+                </div>
+
+                {/* Boyut slider'ları */}
+                <Slider label={t('photo_width')} value={photoWidth} onChange={setPhotoWidth} min={20} max={150} step={1} />
+                <Slider label={t('photo_height')} value={photoHeight} onChange={setPhotoHeight} min={25} max={200} step={1} />
+                <Slider label={t('stand_frame_thickness')} value={standFrameThickness} onChange={setStandFrameThickness} min={1} max={6} step={0.5} />
+                <Slider label={t('stand_frame_depth')} value={standFrameDepth} onChange={setStandFrameDepth} min={2} max={12} step={0.5} />
+                <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={0} max={60} step={1} />
+                <Slider label={t('photo_tilt')} value={photoTilt} onChange={setPhotoTilt} min={-45} max={60} step={1} />
+              </>
+            )}
+          </div>
+
+          {/* DOWNLOAD BUTTONS */}
           <button
             onClick={handleExport}
             className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-amber-900/30"
           >
             ⬇ {t('export_btn')}
           </button>
+
+          {hasPhotoStand && (
+            <button
+              onClick={handleExportStand}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-xl transition-colors border border-amber-500/30 hover:border-amber-500/60"
+            >
+              {t('export_stand_btn')}
+            </button>
+          )}
 
           <div className="text-[10px] text-slate-600 text-center">
             {t('developer')}: <span className="text-amber-700">TA2NLE</span>
@@ -1004,6 +1148,26 @@ const App = () => {
                   groupRef={groupRef}
                   autoRepeat={autoRepeat}
                   dotConnection={dotConnection}
+                />
+              )}
+
+              {/* ── Vesikalık Fotoğraf Tutacağı ── */}
+              {hasPhotoStand && (
+                <PhotoStand
+                  photoWidth={photoWidth}
+                  photoHeight={photoHeight}
+                  frameThickness={standFrameThickness}
+                  frameDepth={standFrameDepth}
+                  distance={photoDistance}
+                  tilt={photoTilt}
+                  position={photoStandPosition}
+                  outerDiameter={outerDiameter}
+                  outerSize={outerSize}
+                  shape={mode === 'castle' ? shape : 'cylinder'}
+                  height={height}
+                  baseHeight={baseHeight}
+                  materialColor={materialColor}
+                  standRef={standRef}
                 />
               )}
             </group>
