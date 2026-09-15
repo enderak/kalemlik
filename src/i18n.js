@@ -116,6 +116,9 @@ const resources = {
       "stand_frame_depth": "Tutucu Derinliği (mm)",
       "photo_distance": "Kalemliğe Olan Mesafe (mm)",
       "photo_tilt": "Eğim Açısı (Öne / Geriye) (°)",
+      "photo_has_crenellations": "Üst Surlar / Mazgallar",
+      "photo_num_crenellations": "Sur Diş Sayısı",
+      "photo_crenellation_height": "Sur Yüksekliği (mm)",
       "export_stand_btn": "⬇ Fotoğraf Tutacağı STL",
     }
   },
@@ -233,6 +236,9 @@ const resources = {
       "stand_frame_depth": "Frame Depth (mm)",
       "photo_distance": "Distance to Case (mm)",
       "photo_tilt": "Tilt Angle (Forward / Backward) (°)",
+      "photo_has_crenellations": "Top Battlements / Crenellations",
+      "photo_num_crenellations": "Crenellation Count",
+      "photo_crenellation_height": "Crenellation Height (mm)",
       "export_stand_btn": "⬇ Photo Stand STL",
     }
   },

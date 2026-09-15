@@ -17,6 +17,9 @@ const PhotoStand = ({
   frameDepth = 3.5,      // mm – öne doğru toplam çıkıntı/kalınlık
   distance = 0,          // mm – kalemliğe olan mesafe (0 = tam yaslanmış)
   tilt = 10,             // derece – geriye doğru yatıklık açısı
+  hasCrenellations = true, // üst surlar / mazgallar
+  numCrenellations = 4,    // sur diş sayısı
+  crenellationHeight = 6,  // sur yüksekliği (mm)
   position = 'front',    // 'side' | 'front'
   outerDiameter = 100,   // mm – silindirik kalemlik dış çapı
   outerSize = 100,       // mm – kare kalemlik dış boyutu
@@ -81,7 +84,26 @@ const PhotoStand = ({
     return g;
   }, [totalW, lipWidth, frontLipThick, frameDepth]);
 
-  // 5. Bağlantı/Destek Kolu
+  // 5. Üst Surlar / Mazgallar (Crenellations)
+  // Arka plakanın üst ucundan (Y = totalH) yukarıya uzanan kale surları
+  const crenellationsData = useMemo(() => {
+    if (!hasCrenellations || numCrenellations < 1 || crenellationHeight <= 0) return null;
+    const n = Math.max(1, Math.round(numCrenellations));
+    // Dişler ve aralarındaki boşluklar: n diş + (n-1) boşluk = 2n - 1 birim
+    const unitWidth = totalW / (2 * n - 1);
+    const toothWidth = unitWidth;
+    const geom = new THREE.BoxGeometry(toothWidth, crenellationHeight, backPlateThick);
+    geom.translate(0, crenellationHeight / 2, backPlateThick / 2);
+
+    const positions = [];
+    for (let i = 0; i < n; i++) {
+      const x = -totalW / 2 + toothWidth / 2 + i * (2 * unitWidth);
+      positions.push([x, totalH, 0]);
+    }
+    return { geom, positions };
+  }, [hasCrenellations, numCrenellations, crenellationHeight, totalW, backPlateThick, totalH]);
+
+  // 6. Bağlantı/Destek Kolu
   const bridgeGeom = useMemo(() => {
     const bridgeThick = Math.max(baseHeight, 4);
     if (position === 'front') {
@@ -118,7 +140,7 @@ const PhotoStand = ({
 
   return (
     <group ref={standRef} position={standPosition}>
-      {/* Geriye yatıklık açısı (X ekseni etrafında geriye dönüş: +X ekseninde geriye yatar) */}
+      {/* Eğim açısı (X ekseni etrafında geriye/öne dönüş) */}
       <group rotation={[tiltRad, 0, 0]}>
         {/* Arka Plaka */}
         <mesh geometry={backGeom} material={mat} castShadow receiveShadow />
@@ -164,6 +186,19 @@ const PhotoStand = ({
 
         {/* Ön Alt Tırnak */}
         <mesh geometry={frontLipBottomGeom} material={mat} castShadow receiveShadow />
+
+        {/* Üst Surlar / Mazgallar (Crenellations) */}
+        {crenellationsData &&
+          crenellationsData.positions.map((pos, idx) => (
+            <mesh
+              key={idx}
+              geometry={crenellationsData.geom}
+              material={mat}
+              position={pos}
+              castShadow
+              receiveShadow
+            />
+          ))}
       </group>
 
       {/* Kalemliğe bağlantı / mesafe köprüsü */}

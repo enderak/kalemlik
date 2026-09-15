@@ -124,6 +124,9 @@ const App = () => {
   const [standFrameDepth, setStandFrameDepth] = useState(5);
   const [photoDistance, setPhotoDistance] = useState(0); // mm - kalemliğe olan mesafe (0 = tam yaslanmış)
   const [photoTilt, setPhotoTilt] = useState(10); // derece - geriye doğru yatıklık açısı (0 = tam dik)
+  const [photoHasCrenellations, setPhotoHasCrenellations] = useState(true); // Üst surlar/mazgallar
+  const [photoNumCrenellations, setPhotoNumCrenellations] = useState(4); // Mazgal diş sayısı
+  const [photoCrenellationHeight, setPhotoCrenellationHeight] = useState(6); // Mazgal yüksekliği (mm)
 
   const applyPresetChessRook = () => {
     setShape('cylinder');
@@ -1034,6 +1037,28 @@ const App = () => {
                 <Slider label={t('stand_frame_depth')} value={standFrameDepth} onChange={setStandFrameDepth} min={2} max={12} step={0.5} />
                 <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={0} max={60} step={1} />
                 <Slider label={t('photo_tilt')} value={photoTilt} onChange={setPhotoTilt} min={-45} max={60} step={1} />
+
+                {/* Surlar / Mazgallar Toggle ve Ayarları */}
+                <label className="flex items-center gap-3 mt-4 mb-3 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={photoHasCrenellations}
+                      onChange={(e) => setPhotoHasCrenellations(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                    <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+                  </div>
+                  <span className="text-xs text-slate-300 font-medium">{t('photo_has_crenellations')}</span>
+                </label>
+
+                {photoHasCrenellations && (
+                  <>
+                    <Slider label={t('photo_num_crenellations')} value={photoNumCrenellations} onChange={setPhotoNumCrenellations} min={2} max={10} step={1} />
+                    <Slider label={t('photo_crenellation_height')} value={photoCrenellationHeight} onChange={setPhotoCrenellationHeight} min={3} max={20} step={1} />
+                  </>
+                )}
               </>
             )}
           </div>
@@ -1160,6 +1185,9 @@ const App = () => {
                   frameDepth={standFrameDepth}
                   distance={photoDistance}
                   tilt={photoTilt}
+                  hasCrenellations={photoHasCrenellations}
+                  numCrenellations={photoNumCrenellations}
+                  crenellationHeight={photoCrenellationHeight}
                   position={photoStandPosition}
                   outerDiameter={outerDiameter}
                   outerSize={outerSize}
