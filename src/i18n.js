@@ -131,7 +131,10 @@ const resources = {
       "photo_snap_back": "Arkaya Yasla (Silme)",
       "photo_snap_left": "Sola Yasla (Silme)",
       "photo_snap_right": "Sağa Yasla (Silme)",
+      "export_btn": "Kalemlik İndir (Tek STL)",
       "export_stand_btn": "⬇ Fotoğraf Tutacağı STL",
+      "export_combined_btn": "⬇ Kalemlik + Çerçeve Bir Arada (STL)",
+      "export_colored_btn": "🎨 Renkli Model İndir (OBJ + MTL Zip)",
     }
   },
   EN: {
@@ -263,7 +266,10 @@ const resources = {
       "photo_snap_back": "Snap to Back (Flush)",
       "photo_snap_left": "Snap to Left (Flush)",
       "photo_snap_right": "Snap to Right (Flush)",
+      "export_btn": "Download Pencil Case (STL)",
       "export_stand_btn": "⬇ Photo Stand STL",
+      "export_combined_btn": "⬇ Case + Stand Combined (STL)",
+      "export_colored_btn": "🎨 Download Full Color Model (OBJ + MTL Zip)",
     }
   },
 };

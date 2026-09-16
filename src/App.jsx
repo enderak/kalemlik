@@ -5,6 +5,9 @@ import NamePencilCase from './components/organisms/NamePencilCase';
 import PhotoStand from './components/organisms/PhotoStand';
 import { useTranslation } from 'react-i18next';
 import { STLExporter } from 'three/examples/jsm/exporters/STLExporter';
+import { OBJExporter } from 'three/examples/jsm/exporters/OBJExporter';
+import JSZip from 'jszip';
+import * as THREE from 'three';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 
 const SCALE = 0.05;
@@ -194,6 +197,7 @@ const App = () => {
     }
   };
 
+  const mainGroupRef = useRef();
   const groupRef = useRef();
   const standRef = useRef();
 
@@ -279,6 +283,94 @@ const App = () => {
     } else {
       standRef.current.updateMatrixWorld(true);
     }
+  };
+
+  // Kalemlik + Çerçeve Tek Parça Bir Arada STL Export
+  const handleExportCombined = () => {
+    const targetGroup = mainGroupRef.current || groupRef.current?.parent;
+    if (!targetGroup) return;
+
+    const exporter = new STLExporter();
+    const origScale = targetGroup.scale.clone();
+    const origRot = targetGroup.rotation.clone();
+
+    targetGroup.scale.set(1, 1, 1);
+    targetGroup.rotation.set(Math.PI / 2, 0, 0);
+    targetGroup.updateMatrixWorld(true);
+
+    const result = exporter.parse(targetGroup, { binary: true });
+    const blob = new Blob([result], { type: 'application/octet-stream' });
+
+    const sizeLabel = shape === 'cylinder' ? outerDiameter : `${outerSize}x${outerSize}`;
+    const filename = `Kalemlik_ve_FotoTutacagi_TekParca_${sizeLabel}x${height}_${Date.now()}.stl`;
+    downloadBlob(blob, filename);
+
+    targetGroup.scale.copy(origScale);
+    targetGroup.rotation.copy(origRot);
+    targetGroup.updateMatrixWorld(true);
+  };
+
+  // Otomatik Renklendirilmiş Tam Model Export (OBJ + MTL Zip)
+  const handleExportColored = async () => {
+    const targetGroup = (hasPhotoStand && mainGroupRef.current) ? mainGroupRef.current : (groupRef.current || mainGroupRef.current);
+    if (!targetGroup) return;
+
+    const origScale = targetGroup.scale.clone();
+    const origRot = targetGroup.rotation.clone();
+
+    // 3D baskı ve renkli render için Z-up dönüşümü
+    targetGroup.scale.set(1, 1, 1);
+    targetGroup.rotation.set(Math.PI / 2, 0, 0);
+    targetGroup.updateMatrixWorld(true);
+
+    // Renkleri toplayarak MTL dosyası ve obj referansı oluştur
+    const materialsMap = new Map();
+    let matIndex = 1;
+
+    targetGroup.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const mat = child.material;
+        const col = mat.color ? mat.color.getHexString() : 'cccccc';
+        if (!materialsMap.has(col)) {
+          const matName = `mat_${col}`;
+          materialsMap.set(col, { name: matName, hex: col, color: mat.color || new THREE.Color(0xcccccc) });
+        }
+      }
+    });
+
+    const exporter = new OBJExporter();
+    let rawObj = exporter.parse(targetGroup);
+
+    // MTL Dosyası İçeriği
+    let mtlContent = `# Kalemlik 3D Model Material Library\n# Created by Sakrad 3D Studio\n\n`;
+    for (const [col, mInfo] of materialsMap.entries()) {
+      const c = mInfo.color;
+      mtlContent += `newmtl ${mInfo.name}\n`;
+      mtlContent += `Ka ${c.r.toFixed(4)} ${c.g.toFixed(4)} ${c.b.toFixed(4)}\n`;
+      mtlContent += `Kd ${c.r.toFixed(4)} ${c.g.toFixed(4)} ${c.b.toFixed(4)}\n`;
+      mtlContent += `Ks 0.2000 0.2000 0.2000\n`;
+      mtlContent += `Ns 30.0\n`;
+      mtlContent += `d 1.0\n`;
+      mtlContent += `illum 2\n\n`;
+    }
+
+    // OBJ dosyasına mtllib ekle ve materyal atamalarını bağla
+    let finalObj = `mtllib model.mtl\n` + rawObj;
+
+    // Zip arşivine paketle
+    const zip = new JSZip();
+    zip.file('model.obj', finalObj);
+    zip.file('model.mtl', mtlContent);
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const sizeLabel = shape === 'cylinder' ? outerDiameter : `${outerSize}x${outerSize}`;
+    const filename = `Renkli_Kalemlik_Model_${sizeLabel}x${height}_${Date.now()}.zip`;
+    downloadBlob(zipBlob, filename);
+
+    // Restore
+    targetGroup.scale.copy(origScale);
+    targetGroup.rotation.copy(origRot);
+    targetGroup.updateMatrixWorld(true);
   };
 
   const toggleLang = () => {
@@ -1173,21 +1265,40 @@ const App = () => {
           </div>
 
           {/* DOWNLOAD BUTTONS */}
-          <button
-            onClick={handleExport}
-            className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-amber-900/30"
-          >
-            ⬇ {t('export_btn')}
-          </button>
-
-          {hasPhotoStand && (
+          <div className="space-y-2">
             <button
-              onClick={handleExportStand}
-              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-xl transition-colors border border-amber-500/30 hover:border-amber-500/60"
+              onClick={handleExport}
+              className="w-full py-2.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-xl transition-colors shadow-lg shadow-amber-900/30 text-xs"
             >
-              {t('export_stand_btn')}
+              ⬇ {hasPhotoStand ? t('export_btn') : t('export_btn')}
             </button>
-          )}
+
+            {hasPhotoStand && (
+              <>
+                <button
+                  onClick={handleExportCombined}
+                  className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white font-bold rounded-xl transition-colors shadow-md text-xs"
+                >
+                  {t('export_combined_btn')}
+                </button>
+
+                <button
+                  onClick={handleExportStand}
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-xl transition-colors border border-amber-500/30 hover:border-amber-500/60 text-xs"
+                >
+                  {t('export_stand_btn')}
+                </button>
+              </>
+            )}
+
+            {/* Renkli Model İndirme (OBJ + MTL Zip) */}
+            <button
+              onClick={handleExportColored}
+              className="w-full py-2.5 bg-indigo-700 hover:bg-indigo-600 text-white font-bold rounded-xl transition-colors shadow-md text-xs flex items-center justify-center gap-1.5"
+            >
+              {t('export_colored_btn')}
+            </button>
+          </div>
 
           <div className="text-[10px] text-slate-600 text-center">
             {t('developer')}: <span className="text-amber-700">TA2NLE</span>
@@ -1213,7 +1324,7 @@ const App = () => {
             <directionalLight position={[5, 10, 5]} intensity={1.2} castShadow />
             <pointLight position={[-5, 5, -5]} intensity={0.5} />
 
-            <group scale={[SCALE, SCALE, SCALE]}>
+            <group ref={mainGroupRef} scale={[SCALE, SCALE, SCALE]}>
               {mode === 'castle' ? (
                 <CastlePencilCase
                   shape={shape}
