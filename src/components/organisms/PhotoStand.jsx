@@ -10,6 +10,32 @@ import * as THREE from 'three';
  * 4) Fotoğraf üstten kaydırılan U ceptir (sol, sağ, alt çıta ve ön tutucu tırnaklar).
  */
 
+function createBrickTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  const bw = 48, bh = 20, mw = 3;
+  ctx.fillStyle = '#c4a882';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = '#b8956e';
+  const cols = Math.ceil(256 / (bw + mw));
+  const rows = Math.ceil(256 / (bh + mw));
+  for (let r = 0; r < rows; r++) {
+    const ox = (r % 2) * (bw / 2);
+    for (let c = 0; c < cols; c++) {
+      const x = c * (bw + mw) + ox + mw / 2;
+      const y = r * (bh + mw) + mw / 2;
+      ctx.fillRect(x, y, bw, bh);
+    }
+  }
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(2, 2);
+  t.anisotropy = 4;
+  return t;
+}
+
 const PhotoStand = ({
   photoWidth = 35,       // mm – fotoğraf genişliği
   photoHeight = 45,      // mm – fotoğraf yüksekliği
@@ -29,6 +55,9 @@ const PhotoStand = ({
   shape = 'cylinder',    // 'cylinder' | 'square'
   height = 150,          // mm – kalemlik yüksekliği
   baseHeight = 8,        // mm – taban yüksekliği
+  showBrickTexture = false,
+  embossedBricks = false,
+  brickDepth = 1.5,
   materialColor = '#a8a29e',
   standRef,
 }) => {
@@ -47,14 +76,17 @@ const PhotoStand = ({
   const frontLipThick = Math.max(0.8, effectiveFrameDepth - slotDepth);
   const lipWidth = frameThickness;
 
+  const brickTex = useMemo(() => (showBrickTexture ? createBrickTexture() : null), [showBrickTexture]);
+
   const mat = useMemo(
     () =>
       new THREE.MeshStandardMaterial({
         color: materialColor,
         roughness: 0.95,
         metalness: 0.1,
+        map: brickTex,
       }),
-    [materialColor]
+    [materialColor, brickTex]
   );
 
   // 1. Arka Destek Levhası (Z ekseninde 0'dan -backPlateThick yönüne doğru arkaya uzanır)
@@ -129,7 +161,60 @@ const PhotoStand = ({
     totalH,
   ]);
 
-  // 6. Bağlantı/Destek Kolu
+  // 6. 3D Kabartmalı Tuğlalar (Arka Duvar Üzerine)
+  const embossedBrickGeoms = useMemo(() => {
+    if (!embossedBricks || brickDepth <= 0) return null;
+    const bDepth = THREE.MathUtils.clamp(brickDepth, 0.5, 3.0);
+    const gap = 1.0;
+    const hBrick = 7.0; // Kalemlikle uyumlu sıra yüksekliği
+    const rowH = hBrick + gap;
+    const numRows = Math.max(1, Math.floor(totalH / rowH));
+
+    const avgBrickW = 16.0;
+    const numCols = Math.max(2, Math.round(totalW / avgBrickW));
+    const colW = totalW / numCols;
+    const wBrick = colW - gap;
+
+    const geoms = [];
+    const zBack = -backPlateThick; // Arka duvarın arka yüzeyi
+
+    for (let r = 0; r < numRows; r++) {
+      const yCenter = r * rowH + gap + hBrick / 2;
+      const isEven = r % 2 === 0;
+
+      if (isEven) {
+        for (let c = 0; c < numCols; c++) {
+          const xCenter = -totalW / 2 + gap / 2 + c * colW + wBrick / 2;
+          const g = new THREE.BoxGeometry(wBrick, hBrick, bDepth);
+          g.translate(xCenter, yCenter, zBack - bDepth / 2);
+          geoms.push(g);
+        }
+      } else {
+        // Şaşırtmalı (yarım tuğla kenarlarda)
+        const halfW = (wBrick - gap) / 2;
+        // Sol yarım tuğla
+        const gLeft = new THREE.BoxGeometry(halfW, hBrick, bDepth);
+        gLeft.translate(-totalW / 2 + gap / 2 + halfW / 2, yCenter, zBack - bDepth / 2);
+        geoms.push(gLeft);
+
+        // Orta tam tuğlalar
+        for (let c = 0; c < numCols - 1; c++) {
+          const xCenter = -totalW / 2 + gap / 2 + halfW + gap + c * colW + wBrick / 2;
+          const g = new THREE.BoxGeometry(wBrick, hBrick, bDepth);
+          g.translate(xCenter, yCenter, zBack - bDepth / 2);
+          geoms.push(g);
+        }
+
+        // Sağ yarım tuğla
+        const gRight = new THREE.BoxGeometry(halfW, hBrick, bDepth);
+        gRight.translate(totalW / 2 - gap / 2 - halfW / 2, yCenter, zBack - bDepth / 2);
+        geoms.push(gRight);
+      }
+    }
+    return geoms;
+  }, [embossedBricks, brickDepth, totalW, totalH, backPlateThick]);
+
+  // 7. Bağlantı/Destek Kolu
   const bridgeGeom = useMemo(() => {
     const bridgeThick = Math.max(baseHeight, 4);
     if (position === 'front') {
@@ -216,6 +301,18 @@ const PhotoStand = ({
 
         {/* Ön Alt Tırnak */}
         <mesh geometry={frontLipBottomGeom} material={mat} castShadow receiveShadow />
+
+        {/* 3D Kabartmalı Tuğlalar (Arka Duvar) */}
+        {embossedBrickGeoms &&
+          embossedBrickGeoms.map((g, idx) => (
+            <mesh
+              key={`photo-brick-${idx}`}
+              geometry={g}
+              material={mat}
+              castShadow
+              receiveShadow
+            />
+          ))}
 
         {/* Üst Surlar / Mazgallar (Crenellations) */}
         {crenellationsData &&

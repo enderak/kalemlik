@@ -1306,6 +1306,9 @@ const App = () => {
                   shape={mode === 'castle' ? shape : 'cylinder'}
                   height={height}
                   baseHeight={baseHeight}
+                  showBrickTexture={mode === 'castle' ? showBrickTexture : false}
+                  embossedBricks={mode === 'castle' ? embossedBricks : false}
+                  brickDepth={brickDepth}
                   materialColor={materialColor}
                   standRef={standRef}
                 />
