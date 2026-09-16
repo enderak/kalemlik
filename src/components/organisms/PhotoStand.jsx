@@ -36,6 +36,38 @@ function createBrickTexture() {
   return t;
 }
 
+// Kalemlikteki dünya koordinatlarına göre ExtrudeGeometry UV haritalamasıyla
+// birebir milimetrik eşleşme sağlayan triplanar Box UV yardımcısı
+function applyBoxWorldUV(geom, texUnitW = 25.5, texUnitH = 11.5) {
+  const pos = geom.getAttribute('position');
+  const norm = geom.getAttribute('normal');
+  if (!pos || !norm) return;
+  const count = pos.count;
+  const uvs = new Float32Array(count * 2);
+  for (let i = 0; i < count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const nx = Math.abs(norm.getX(i));
+    const ny = Math.abs(norm.getY(i));
+    const nz = Math.abs(norm.getZ(i));
+    let u = 0, v = 0;
+    if (nz >= nx && nz >= ny) {
+      u = x / texUnitW;
+      v = y / texUnitH;
+    } else if (nx >= ny && nx >= nz) {
+      u = z / texUnitW;
+      v = y / texUnitH;
+    } else {
+      u = x / texUnitW;
+      v = z / texUnitH;
+    }
+    uvs[i * 2] = u;
+    uvs[i * 2 + 1] = v;
+  }
+  geom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+}
+
 const PhotoStand = ({
   photoWidth = 35,       // mm – fotoğraf genişliği
   photoHeight = 45,      // mm – fotoğraf yüksekliği
@@ -55,6 +87,8 @@ const PhotoStand = ({
   shape = 'cylinder',    // 'cylinder' | 'square'
   height = 150,          // mm – kalemlik yüksekliği
   baseHeight = 8,        // mm – taban yüksekliği
+  topExtension = 6,
+  corniceHeight = 12,
   showBrickTexture = false,
   embossedBricks = false,
   brickDepth = 1.5,
@@ -94,6 +128,7 @@ const PhotoStand = ({
   const backGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(totalW, totalH, backPlateThick);
     g.translate(0, totalH / 2, -backPlateThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [totalW, totalH, backPlateThick]);
 
@@ -101,6 +136,7 @@ const PhotoStand = ({
   const bottomRailGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(totalW, frameThickness, effectiveFrameDepth);
     g.translate(0, frameThickness / 2, effectiveFrameDepth / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [totalW, frameThickness, effectiveFrameDepth]);
 
@@ -108,6 +144,7 @@ const PhotoStand = ({
   const sideRailGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(frameThickness, totalH, effectiveFrameDepth);
     g.translate(0, totalH / 2, effectiveFrameDepth / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [frameThickness, totalH, effectiveFrameDepth]);
 
@@ -115,12 +152,14 @@ const PhotoStand = ({
   const frontLipSideGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(lipWidth, totalH, frontLipThick);
     g.translate(0, totalH / 2, effectiveFrameDepth - frontLipThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [lipWidth, totalH, frontLipThick, effectiveFrameDepth]);
 
   const frontLipBottomGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(totalW, lipWidth, frontLipThick);
     g.translate(0, lipWidth / 2, effectiveFrameDepth - frontLipThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [totalW, lipWidth, frontLipThick, effectiveFrameDepth]);
 
@@ -143,6 +182,7 @@ const PhotoStand = ({
 
     const geom = new THREE.BoxGeometry(toothWidth, crenellationHeight, toothDepth);
     geom.translate(0, crenellationHeight / 2, zOffset);
+    applyBoxWorldUV(geom, 25.5, 11.5);
 
     const positions = [];
     for (let i = 0; i < n; i++) {
@@ -162,57 +202,92 @@ const PhotoStand = ({
   ]);
 
   // 6. 3D Kabartmalı Tuğlalar (Arka Duvar Üzerine)
+  // Kalemlikteki seçilen şekle (silindir veya kare) göre boyut ve boşlukları birebir eşleştirir
   const embossedBrickGeoms = useMemo(() => {
     if (!embossedBricks || brickDepth <= 0) return null;
     const bDepth = THREE.MathUtils.clamp(brickDepth, 0.5, 3.0);
-    const gap = 1.0;
-    const hBrick = 7.0; // Kalemlikle uyumlu sıra yüksekliği
-    const rowH = hBrick + gap;
-    const numRows = Math.max(1, Math.floor(totalH / rowH));
 
-    const avgBrickW = 16.0;
-    const numCols = Math.max(2, Math.round(totalW / avgBrickW));
-    const colW = totalW / numCols;
-    const wBrick = colW - gap;
+    let gap = 1.0;
+    let hBrick = 8.0;
+    let targetBrickW = 20.0;
+
+    if (shape === 'square') {
+      // Kalemlikteki makeSquareBrickGeoms ile birebir aynı formül ve ölçüler
+      const Hwall = height - (corniceHeight > 0 ? corniceHeight : 0);
+      const Ystart = baseHeight > 0 ? baseHeight : 0;
+      const Hbricks = Hwall - Ystart;
+      if (Hbricks > 10) {
+        const Nrows = Math.max(4, Math.round(Hbricks / 13));
+        gap = 1.5;
+        const hRow = Hbricks / Nrows;
+        hBrick = Math.max(2, hRow - gap);
+        const s = outerSize / 2;
+        const NbCastle = Math.max(2, Math.round((2 * s) / 26));
+        targetBrickW = (2 * s - (NbCastle + 1) * gap) / NbCastle;
+      }
+    } else {
+      // Silindirik mod: bw = 20, bh = 8, gap = 1
+      gap = 1.0;
+      hBrick = 8.0;
+      targetBrickW = 20.0;
+    }
+
+    const rowH = hBrick + gap;
+    const numRows = Math.max(1, Math.floor((totalH - gap) / rowH));
+
+    const Nb = Math.max(1, Math.round((totalW - gap) / (targetBrickW + gap)));
+    const lBrick = (totalW - (Nb + 1) * gap) / Nb;
+    const halfL = Math.max(2, (lBrick - gap) / 2);
 
     const geoms = [];
     const zBack = -backPlateThick; // Arka duvarın arka yüzeyi
 
     for (let r = 0; r < numRows; r++) {
-      const yCenter = r * rowH + gap + hBrick / 2;
+      const yCenter = gap + r * rowH + hBrick / 2;
       const isEven = r % 2 === 0;
+      const spans = [];
 
       if (isEven) {
-        for (let c = 0; c < numCols; c++) {
-          const xCenter = -totalW / 2 + gap / 2 + c * colW + wBrick / 2;
-          const g = new THREE.BoxGeometry(wBrick, hBrick, bDepth);
-          g.translate(xCenter, yCenter, zBack - bDepth / 2);
-          geoms.push(g);
+        // Çift satır: Tam tuğlalar
+        for (let i = 0; i < Nb; i++) {
+          const u0 = -totalW / 2 + gap + i * (lBrick + gap);
+          const u1 = u0 + lBrick;
+          spans.push({ w: u1 - u0, center: (u0 + u1) / 2 });
         }
       } else {
-        // Şaşırtmalı (yarım tuğla kenarlarda)
-        const halfW = (wBrick - gap) / 2;
-        // Sol yarım tuğla
-        const gLeft = new THREE.BoxGeometry(halfW, hBrick, bDepth);
-        gLeft.translate(-totalW / 2 + gap / 2 + halfW / 2, yCenter, zBack - bDepth / 2);
-        geoms.push(gLeft);
-
-        // Orta tam tuğlalar
-        for (let c = 0; c < numCols - 1; c++) {
-          const xCenter = -totalW / 2 + gap / 2 + halfW + gap + c * colW + wBrick / 2;
-          const g = new THREE.BoxGeometry(wBrick, hBrick, bDepth);
-          g.translate(xCenter, yCenter, zBack - bDepth / 2);
-          geoms.push(g);
+        // Tek satır: Şaşırtmalı (başta ve sonda yarım tuğla, ortada tam tuğlalar)
+        const uStart = -totalW / 2 + gap;
+        spans.push({ w: halfL, center: uStart + halfL / 2 });
+        for (let i = 0; i < Nb - 1; i++) {
+          const u0 = uStart + halfL + gap + i * (lBrick + gap);
+          const u1 = u0 + lBrick;
+          spans.push({ w: lBrick, center: (u0 + u1) / 2 });
         }
-
-        // Sağ yarım tuğla
-        const gRight = new THREE.BoxGeometry(halfW, hBrick, bDepth);
-        gRight.translate(totalW / 2 - gap / 2 - halfW / 2, yCenter, zBack - bDepth / 2);
-        geoms.push(gRight);
+        const uEnd = totalW / 2 - gap;
+        spans.push({ w: halfL, center: uEnd - halfL / 2 });
       }
+
+      spans.forEach((sp) => {
+        const g = new THREE.BoxGeometry(sp.w, hBrick, bDepth);
+        g.translate(sp.center, yCenter, zBack - bDepth / 2);
+        applyBoxWorldUV(g, 25.5, 11.5);
+        geoms.push(g);
+      });
     }
+
     return geoms;
-  }, [embossedBricks, brickDepth, totalW, totalH, backPlateThick]);
+  }, [
+    embossedBricks,
+    brickDepth,
+    shape,
+    height,
+    baseHeight,
+    corniceHeight,
+    outerSize,
+    totalW,
+    totalH,
+    backPlateThick,
+  ]);
 
   // 7. Bağlantı/Destek Kolu
   const bridgeGeom = useMemo(() => {
@@ -221,11 +296,13 @@ const PhotoStand = ({
       const bridgeLength = Math.max(distance + 2, 2);
       const g = new THREE.BoxGeometry(totalW * 0.7, bridgeThick, bridgeLength);
       g.translate(0, bridgeThick / 2, -bridgeLength / 2);
+      applyBoxWorldUV(g, 25.5, 11.5);
       return g;
     } else {
       const bridgeLength = Math.max(distance + 2, 2);
       const g = new THREE.BoxGeometry(bridgeLength, bridgeThick, backPlateThick + effectiveFrameDepth + 2);
       g.translate(-bridgeLength / 2, bridgeThick / 2, (effectiveFrameDepth - backPlateThick) / 2);
+      applyBoxWorldUV(g, 25.5, 11.5);
       return g;
     }
   }, [position, distance, baseHeight, totalW, backPlateThick, effectiveFrameDepth]);
