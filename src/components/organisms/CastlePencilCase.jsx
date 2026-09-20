@@ -484,6 +484,32 @@ function transformShape2D(shape, sx, sy, tx, ty) {
   return s;
 }
 
+function flipGeometryX(geometry) {
+  const g = geometry.clone();
+  g.scale(-1, 1, 1);
+  const index = g.index;
+  if (index) {
+    const arr = index.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      const tmp = arr[i + 1];
+      arr[i + 1] = arr[i + 2];
+      arr[i + 2] = tmp;
+    }
+    index.needsUpdate = true;
+  } else {
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i += 3) {
+      const x1 = pos.getX(i + 1), y1 = pos.getY(i + 1), z1 = pos.getZ(i + 1);
+      const x2 = pos.getX(i + 2), y2 = pos.getY(i + 2), z2 = pos.getZ(i + 2);
+      pos.setXYZ(i + 1, x2, y2, z2);
+      pos.setXYZ(i + 2, x1, y1, z1);
+    }
+    pos.needsUpdate = true;
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
 function makeSquareBrickGeoms(outerSize, wallThick, height, corniceH, baseH, brickDepth) {
   const s = outerSize / 2;
   const Hwall = height - (corniceH > 0 ? corniceH : 0);
@@ -702,6 +728,9 @@ const CastlePencilCase = ({
   castleReliefDepth = 1,
   reliefMode = 'emboss',
   reliefScale = 1.0,
+  castleReliefElevation = 70,
+  castleReliefAngle = 0,
+  reliefFlipX = false,
   topExtension = 6,
   corniceHeight = 12,
   // Text props
@@ -1073,8 +1102,12 @@ const CastlePencilCase = ({
 
     if (reliefMode === 'emboss') {
       // Protruding solid relief extruded forward
-      const geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
-      geom.computeVertexNormals();
+      let geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
+      if (reliefFlipX) {
+        geom = flipGeometryX(geom);
+      } else {
+        geom.computeVertexNormals();
+      }
       return { mode: 'emboss', geom };
     } else {
       // 'engrave' -> Real physical carved pocket/recess in the wall
@@ -1100,8 +1133,12 @@ const CastlePencilCase = ({
       // Add relief shapes as cutout holes in the plate
       plateShape.holes.push(...shapes);
 
-      const frameGeom = new THREE.ExtrudeGeometry(plateShape, { depth, bevelEnabled: false, steps: 1 });
-      frameGeom.computeVertexNormals();
+      let frameGeom = new THREE.ExtrudeGeometry(plateShape, { depth, bevelEnabled: false, steps: 1 });
+      if (reliefFlipX) {
+        frameGeom = flipGeometryX(frameGeom);
+      } else {
+        frameGeom.computeVertexNormals();
+      }
 
       return {
         mode: 'engrave',
@@ -1111,18 +1148,67 @@ const CastlePencilCase = ({
         ph,
       };
     }
-  }, [showCastleRelief, reliefShapesData, reliefMode, castleReliefDepth]);
+  }, [showCastleRelief, reliefShapesData, reliefMode, castleReliefDepth, reliefFlipX]);
 
   /* --- castle relief mesh --- */
   const castleReliefMesh = useMemo(() => {
     if (!showCastleRelief || !reliefGeomData) return null;
 
-    const frontZ = isCylinder ? outerDiameter / 2 : outerSize / 2;
-    const posY = height * 0.48;
+    const maxElev = Math.max(20, height - (topExtension > 0 ? corniceHeight : 0) - 10);
+    const posY = Math.min(Math.max(10, castleReliefElevation ?? Math.round(height * 0.48)), maxElev);
+    const angleDeg = (castleReliefAngle ?? 0) % 360;
+    const rad = (angleDeg * Math.PI) / 180;
+
+    let posX = 0;
+    let posZ = 0;
+    let rotY = 0;
+
+    if (isCylinder) {
+      const r = outerDiameter / 2;
+      const targetR = reliefGeomData.mode === 'emboss' ? r + 0.05 : r;
+      posX = Math.sin(rad) * targetR;
+      posZ = Math.cos(rad) * targetR;
+      rotY = rad;
+    } else {
+      const s = outerSize / 2;
+      const offset = reliefGeomData.mode === 'emboss' ? 0.05 : 0;
+      const sinA = Math.sin(rad);
+      const cosA = Math.cos(rad);
+
+      if (Math.abs(cosA) >= Math.abs(sinA)) {
+        if (cosA >= 0) {
+          // Front face (+Z)
+          posX = Math.min(Math.max(s * (sinA / cosA), -s), s);
+          posZ = s + offset;
+          rotY = 0;
+        } else {
+          // Back face (-Z)
+          posX = Math.min(Math.max(-s * (sinA / Math.abs(cosA)), -s), s);
+          posZ = -s - offset;
+          rotY = Math.PI;
+        }
+      } else {
+        if (sinA >= 0) {
+          // Right face (+X)
+          posX = s + offset;
+          posZ = Math.min(Math.max(s * (cosA / sinA), -s), s);
+          rotY = Math.PI / 2;
+        } else {
+          // Left face (-X)
+          posX = -s - offset;
+          posZ = Math.min(Math.max(-s * (cosA / Math.abs(sinA)), -s), s);
+          rotY = -Math.PI / 2;
+        }
+      }
+    }
 
     if (reliefGeomData.mode === 'emboss') {
       return (
-        <group key={`relief-emboss-${showBrickTexture}-${reliefSource}`} position={[0, posY, frontZ + 0.05]}>
+        <group
+          key={`relief-emboss-${showBrickTexture}-${reliefSource}-${reliefFlipX}`}
+          position={[posX, posY, posZ]}
+          rotation={[0, rotY, 0]}
+        >
           <mesh geometry={reliefGeomData.geom} name="CastleReliefEmboss" receiveShadow castShadow>
             <meshStandardMaterial color={materialColor} roughness={0.75} map={brickTex} />
           </mesh>
@@ -1131,7 +1217,11 @@ const CastlePencilCase = ({
     } else {
       // True Physical Engraving: Carved pocket directly recessed into the wall surface
       return (
-        <group key={`relief-engrave-${showBrickTexture}-${reliefSource}`} position={[0, posY, frontZ]}>
+        <group
+          key={`relief-engrave-${showBrickTexture}-${reliefSource}-${reliefFlipX}`}
+          position={[posX, posY, posZ]}
+          rotation={[0, rotY, 0]}
+        >
           {/* Wall plate with cutout silhouette creating authentic engraved pocket */}
           <mesh
             geometry={reliefGeomData.frameGeom}
@@ -1145,7 +1235,23 @@ const CastlePencilCase = ({
         </group>
       );
     }
-  }, [showCastleRelief, reliefGeomData, isCylinder, outerDiameter, outerSize, height, materialColor, showBrickTexture, brickTex, reliefSource]);
+  }, [
+    showCastleRelief,
+    reliefGeomData,
+    isCylinder,
+    outerDiameter,
+    outerSize,
+    height,
+    materialColor,
+    showBrickTexture,
+    brickTex,
+    reliefSource,
+    reliefFlipX,
+    castleReliefElevation,
+    castleReliefAngle,
+    topExtension,
+    corniceHeight,
+  ]);
 
   /* --- door (recessed, with frame) --- */
   const doorMesh = useMemo(() => {

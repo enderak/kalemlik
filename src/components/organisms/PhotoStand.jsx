@@ -6,8 +6,9 @@ import * as THREE from 'three';
  *
  * 1) Öndeyse: Çerçevenin ARKA yüzeyi kalemliğin ön duvarına yaslanır. Fotoğraf öne (+Z) bakar.
  * 2) Yandaysa: Çerçevenin YAN tarafı (sol kenarı) kalemliğin yan duvarına yaslanır. Fotoğraf yine öne (+Z) bakar.
- * 3) Kalem kutusuna olan mesafe (distance) ayarlanabilir (0 = tam yaslanmış).
- * 4) Fotoğraf üstten kaydırılan U ceptir (sol, sağ, alt çıta ve ön tutucu tırnaklar).
+ * 3) Arkadaysa: Çerçevenin ARKA yüzeyi kalemliğin arka duvarına yaslanır. Fotoğraf arkaya (-Z) bakar.
+ * 4) Kalem kutusuna olan mesafe (distance) ayarlanabilir (0 = tam yaslanmış).
+ * 5) Fotoğraf üstten kaydırılan U ceptir (sol, sağ, alt çıta ve ön tutucu tırnaklar).
  */
 
 function createBrickTexture() {
@@ -74,6 +75,8 @@ const PhotoStand = ({
   frameThickness = 2.5,  // mm – kenar çerçeve genişliği
   frameDepth = 3.5,      // mm – öne doğru toplam çıkıntı/kalınlık
   backPlateThickness = 4.0, // mm – çerçevenin arka duvar kalınlığı (ayarlanabilir, sur gibi tok durur)
+  onlyEdges = false,     // boolean – sadece kenarlıklar (arka panel içi boş, ortası açık pencere)
+  hasTopEdge = false,    // boolean – üst kenarlık kapat (4 kenarlı kapalı çerçeve)
   distance = 0,          // mm – kalemliğe olan mesafe (0 = tam yaslanmış)
   offset = 0,            // mm – yandayken ön/arka (Z), öndeyken sağ/sol (X) kaydırma
   tilt = 10,             // derece – geriye doğru yatıklık açısı
@@ -81,7 +84,7 @@ const PhotoStand = ({
   numCrenellations = 4,    // sur diş sayısı
   crenellationHeight = 6,  // sur yüksekliği (mm)
   crenellationAlignment = 'center', // 'front' | 'center' | 'back'
-  position = 'front',    // 'side' | 'front'
+  position = 'front',    // 'side' | 'front' | 'back'
   outerDiameter = 100,   // mm – silindirik kalemlik dış çapı
   outerSize = 100,       // mm – kare kalemlik dış boyutu
   shape = 'cylinder',    // 'cylinder' | 'square'
@@ -99,7 +102,7 @@ const PhotoStand = ({
 
   // Çerçevenin dış toplam boyutları
   const totalW = photoWidth + frameThickness * 2;
-  const totalH = photoHeight + frameThickness; // Altta ray var, üst açık
+  const totalH = photoHeight + frameThickness + (hasTopEdge ? frameThickness : 0);
 
   // Arka plaka kalınlığı (kullanıcının ayarladığı değer, min 1.5mm)
   const backPlateThick = Math.max(1.5, backPlateThickness);
@@ -125,12 +128,39 @@ const PhotoStand = ({
 
   // 1. Arka Destek Levhası (Z ekseninde 0'dan -backPlateThick yönüne doğru arkaya uzanır)
   // Böylece Z = 0 fotoğrafın arkasının dayandığı iç yüzey kalır.
+  // 1. Arka Destek: Dolu Levha Modu (Z ekseninde 0'dan -backPlateThick yönüne doğru)
   const backGeom = useMemo(() => {
+    if (onlyEdges) return null;
     const g = new THREE.BoxGeometry(totalW, totalH, backPlateThick);
     g.translate(0, totalH / 2, -backPlateThick / 2);
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
-  }, [totalW, totalH, backPlateThick]);
+  }, [onlyEdges, totalW, totalH, backPlateThick]);
+
+  // 1b. Arka Kenarlık Çıtaları (Sadece Kenarlıklar Modu: Ortası Açık / İçi Boş)
+  const rearSideRailGeom = useMemo(() => {
+    if (!onlyEdges) return null;
+    const g = new THREE.BoxGeometry(frameThickness, totalH, backPlateThick);
+    g.translate(0, totalH / 2, -backPlateThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
+    return g;
+  }, [onlyEdges, frameThickness, totalH, backPlateThick]);
+
+  const rearBottomRailGeom = useMemo(() => {
+    if (!onlyEdges) return null;
+    const g = new THREE.BoxGeometry(totalW, frameThickness, backPlateThick);
+    g.translate(0, frameThickness / 2, -backPlateThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
+    return g;
+  }, [onlyEdges, totalW, frameThickness, backPlateThick]);
+
+  const rearTopRailGeom = useMemo(() => {
+    if (!onlyEdges || !hasTopEdge) return null;
+    const g = new THREE.BoxGeometry(totalW, frameThickness, backPlateThick);
+    g.translate(0, totalH - frameThickness / 2, -backPlateThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
+    return g;
+  }, [onlyEdges, hasTopEdge, totalW, frameThickness, totalH, backPlateThick]);
 
   // 2. Alt Destek Rayı (Z ekseninde 0'dan +effectiveFrameDepth yönüne doğru öne uzanır)
   const bottomRailGeom = useMemo(() => {
@@ -139,6 +169,15 @@ const PhotoStand = ({
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [totalW, frameThickness, effectiveFrameDepth]);
+
+  // 2b. Üst Destek Rayı (4 Kenar Modunda)
+  const topRailGeom = useMemo(() => {
+    if (!hasTopEdge) return null;
+    const g = new THREE.BoxGeometry(totalW, frameThickness, effectiveFrameDepth);
+    g.translate(0, totalH - frameThickness / 2, effectiveFrameDepth / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
+    return g;
+  }, [hasTopEdge, totalW, frameThickness, totalH, effectiveFrameDepth]);
 
   // 3. Sol ve Sağ Yan Raylar
   const sideRailGeom = useMemo(() => {
@@ -162,6 +201,14 @@ const PhotoStand = ({
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
   }, [totalW, lipWidth, frontLipThick, effectiveFrameDepth]);
+
+  const frontLipTopGeom = useMemo(() => {
+    if (!hasTopEdge) return null;
+    const g = new THREE.BoxGeometry(totalW, lipWidth, frontLipThick);
+    g.translate(0, totalH - lipWidth / 2, effectiveFrameDepth - frontLipThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
+    return g;
+  }, [hasTopEdge, totalW, lipWidth, frontLipThick, totalH, effectiveFrameDepth]);
 
   // 5. Üst Surlar / Mazgallar (Crenellations)
   const crenellationsData = useMemo(() => {
@@ -204,7 +251,7 @@ const PhotoStand = ({
   // 6. 3D Kabartmalı Tuğlalar (Arka Duvar Üzerine)
   // Kalemlikteki seçilen şekle (silindir veya kare) göre boyut ve boşlukları birebir eşleştirir
   const embossedBrickGeoms = useMemo(() => {
-    if (!embossedBricks || brickDepth <= 0) return null;
+    if (onlyEdges || !embossedBricks || brickDepth <= 0) return null;
     const bDepth = THREE.MathUtils.clamp(brickDepth, 0.5, 3.0);
 
     let gap = 1.0;
@@ -278,6 +325,7 @@ const PhotoStand = ({
     return geoms;
   }, [
     embossedBricks,
+    onlyEdges,
     brickDepth,
     shape,
     height,
@@ -292,7 +340,7 @@ const PhotoStand = ({
   // 7. Bağlantı/Destek Kolu
   const bridgeGeom = useMemo(() => {
     const bridgeThick = Math.max(baseHeight, 4);
-    if (position === 'front') {
+    if (position === 'front' || position === 'back') {
       const bridgeLength = Math.max(distance + 2, 2);
       const g = new THREE.BoxGeometry(totalW * 0.7, bridgeThick, bridgeLength);
       g.translate(0, bridgeThick / 2, -bridgeLength / 2);
@@ -307,38 +355,89 @@ const PhotoStand = ({
     }
   }, [position, distance, baseHeight, totalW, backPlateThick, effectiveFrameDepth]);
 
-  // Konumlandırma Koordinatları:
+  // Konumlandırma Koordinatları ve Dönüş Açısı:
   let standPosition = [0, 0, 0];
+  let standRotation = [0, 0, 0];
 
   if (position === 'front') {
     // ÖNDE:
     // X ekseni: Sağ / Sol kaydırma (offset)
-    // Z ekseni: Kalemliğin ön duvarına olan mesafe
+    // Z ekseni: Kalemliğin ön duvarına olan mesafe (+Z)
     const posX = offset;
     const posY = 0;
     const posZ = outerR + distance + backPlateThick;
     standPosition = [posX, posY, posZ];
+    standRotation = [0, 0, 0];
+  } else if (position === 'back') {
+    // ARKADA:
+    // X ekseni: Sağ / Sol kaydırma (offset). Çerçeve 180° döndürüldüğünde local +X world -X'e denk gelir.
+    // Arkadan bakıldığında sağa kaymanın tutarlı olması için world posX = -offset olur.
+    // Z ekseni: Kalemliğin arka duvarına olan mesafe (-Z)
+    const posX = -offset;
+    const posY = 0;
+    const posZ = -(outerR + distance + backPlateThick);
+    standPosition = [posX, posY, posZ];
+    standRotation = [0, Math.PI, 0];
   } else {
     // YANDA:
-    // X ekseni: Kalemliğin yan duvarına olan mesafe
+    // X ekseni: Kalemliğin yan duvarına olan mesafe (+X)
     // Z ekseni: Ön / Arka kaydırma (offset)
     const posX = outerR + distance + totalW / 2;
     const posY = 0;
     const posZ = offset;
     standPosition = [posX, posY, posZ];
+    standRotation = [0, 0, 0];
   }
 
   const tiltRad = (tilt * Math.PI) / 180;
 
   return (
-    <group ref={standRef} position={standPosition}>
+    <group ref={standRef} position={standPosition} rotation={standRotation}>
       {/* Eğim açısı (X ekseni etrafında geriye/öne dönüş) */}
       <group rotation={[tiltRad, 0, 0]}>
-        {/* Arka Plaka */}
-        <mesh geometry={backGeom} material={mat} castShadow receiveShadow />
+        {/* Arka Destek: Dolu Panel veya Sadece Kenarlıklar */}
+        {!onlyEdges ? (
+          backGeom && <mesh geometry={backGeom} material={mat} castShadow receiveShadow />
+        ) : (
+          <>
+            {/* Arka Sol Çıta */}
+            {rearSideRailGeom && (
+              <mesh
+                geometry={rearSideRailGeom}
+                material={mat}
+                position={[-totalW / 2 + frameThickness / 2, 0, 0]}
+                castShadow
+                receiveShadow
+              />
+            )}
+            {/* Arka Sağ Çıta */}
+            {rearSideRailGeom && (
+              <mesh
+                geometry={rearSideRailGeom}
+                material={mat}
+                position={[totalW / 2 - frameThickness / 2, 0, 0]}
+                castShadow
+                receiveShadow
+              />
+            )}
+            {/* Arka Alt Çıta */}
+            {rearBottomRailGeom && (
+              <mesh geometry={rearBottomRailGeom} material={mat} castShadow receiveShadow />
+            )}
+            {/* Arka Üst Çıta (4 Kenar Modunda) */}
+            {hasTopEdge && rearTopRailGeom && (
+              <mesh geometry={rearTopRailGeom} material={mat} castShadow receiveShadow />
+            )}
+          </>
+        )}
 
         {/* Alt Destek Rayı */}
         <mesh geometry={bottomRailGeom} material={mat} castShadow receiveShadow />
+
+        {/* Üst Ray (4 Kenar Modunda) */}
+        {hasTopEdge && topRailGeom && (
+          <mesh geometry={topRailGeom} material={mat} castShadow receiveShadow />
+        )}
 
         {/* Sol Yan Ray */}
         <mesh
@@ -378,6 +477,11 @@ const PhotoStand = ({
 
         {/* Ön Alt Tırnak */}
         <mesh geometry={frontLipBottomGeom} material={mat} castShadow receiveShadow />
+
+        {/* Ön Üst Tırnak (4 Kenar Modunda) */}
+        {hasTopEdge && frontLipTopGeom && (
+          <mesh geometry={frontLipTopGeom} material={mat} castShadow receiveShadow />
+        )}
 
         {/* 3D Kabartmalı Tuğlalar (Arka Duvar) */}
         {embossedBrickGeoms &&

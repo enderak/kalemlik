@@ -86,6 +86,9 @@ const App = () => {
   const [doorColor, setDoorColor] = useState('#1c1917');
   const [reliefMode, setReliefMode] = useState('emboss');
   const [reliefScale, setReliefScale] = useState(1.0);
+  const [castleReliefElevation, setCastleReliefElevation] = useState(70);
+  const [castleReliefAngle, setCastleReliefAngle] = useState(0); // 0: Ön, 90: Sağ, 180: Arka, 270: Sol
+  const [reliefFlipX, setReliefFlipX] = useState(false); // false: sola bakış, true: sağa bakış
   const [reliefSource, setReliefSource] = useState('preset_horse'); // 'preset_horse' | 'custom_svg'
   const [customSvgText, setCustomSvgText] = useState('');
   const [customSvgName, setCustomSvgName] = useState('');
@@ -120,11 +123,13 @@ const App = () => {
 
   // Photo stand states (shared between both modes)
   const [hasPhotoStand, setHasPhotoStand] = useState(false);
-  const [photoStandPosition, setPhotoStandPosition] = useState('side'); // 'side' | 'front'
+  const [photoStandPosition, setPhotoStandPosition] = useState('side'); // 'side' | 'front' | 'back'
   const [photoWidth, setPhotoWidth] = useState(35);
   const [photoHeight, setPhotoHeight] = useState(45);
   const [standFrameThickness, setStandFrameThickness] = useState(2.5);
   const [standFrameDepth, setStandFrameDepth] = useState(5);
+  const [photoOnlyEdges, setPhotoOnlyEdges] = useState(false); // Sadece kenarlıklar (içi boş / arkalıksız çerçeve)
+  const [photoHasTopEdge, setPhotoHasTopEdge] = useState(false); // 4 kenarlı çerçeve (üst kenarlık kapat)
   const [photoBackThickness, setPhotoBackThickness] = useState(4); // mm - çerçevenin arka duvar kalınlığı (varsayılan 4 mm sur görünümü için)
   const [photoDistance, setPhotoDistance] = useState(0); // mm - kalemliğe olan mesafe (0 = tam yaslanmış)
   const [photoTilt, setPhotoTilt] = useState(10); // derece - geriye doğru yatıklık açısı (0 = tam dik)
@@ -155,6 +160,9 @@ const App = () => {
     setReliefMode('engrave');
     setCastleReliefDepth(1.5);
     setReliefScale(1.2);
+    setCastleReliefElevation(75);
+    setCastleReliefAngle(0);
+    setReliefFlipX(false);
     setMaterialColor('#262626');
   };
 
@@ -784,7 +792,87 @@ const App = () => {
                     </div>
 
                     <Slider label={t('relief_depth')} value={castleReliefDepth} onChange={setCastleReliefDepth} min={0.3} max={4} step={0.1} />
-                    <Slider label={t('relief_scale')} value={reliefScale} onChange={setReliefScale} min={0.5} max={2.0} step={0.05} />
+                    <Slider
+                      label={`${t('relief_scale')} (${Math.round(Math.min(height * 0.35, 60) * reliefScale)} mm)`}
+                      value={reliefScale}
+                      onChange={setReliefScale}
+                      min={0.5}
+                      max={2.0}
+                      step={0.05}
+                    />
+
+                    {/* RÖLYEF YÜKSEKLİĞİ / DİKEY KONUM */}
+                    <Slider
+                      label={`${t('relief_elevation')} (${castleReliefElevation} mm)`}
+                      value={castleReliefElevation}
+                      onChange={setCastleReliefElevation}
+                      min={10}
+                      max={Math.max(20, Math.round(height - (topExtension > 0 ? corniceHeight : 0) - 10))}
+                      step={1}
+                    />
+
+                    {/* RÖLYEF CEPHESİ / YÖNÜ */}
+                    <div>
+                      <div className="text-xs text-slate-400 mb-1.5">{t('relief_facing')}</div>
+                      <div className="grid grid-cols-4 gap-1.5 mb-2">
+                        {[
+                          { label: t('relief_facing_front'), angle: 0 },
+                          { label: t('relief_facing_right'), angle: 90 },
+                          { label: t('relief_facing_back'), angle: 180 },
+                          { label: t('relief_facing_left'), angle: 270 },
+                        ].map((item) => (
+                          <button
+                            key={item.angle}
+                            type="button"
+                            onClick={() => setCastleReliefAngle(item.angle)}
+                            className={`py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                              castleReliefAngle === item.angle
+                                ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 shadow-sm'
+                                : 'bg-slate-800 text-slate-400 border border-transparent hover:bg-slate-700'
+                            }`}
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                      <Slider
+                        label={`${t('relief_angle')} (${castleReliefAngle}°)`}
+                        value={castleReliefAngle}
+                        onChange={setCastleReliefAngle}
+                        min={0}
+                        max={360}
+                        step={5}
+                      />
+                    </div>
+
+                    {/* FİGÜR BAKIŞ YÖNÜ (SOLA / SAĞA) */}
+                    <div>
+                      <div className="text-xs text-slate-400 mb-1.5">{t('relief_look_direction')}</div>
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setReliefFlipX(false)}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                            !reliefFlipX
+                              ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 shadow-sm'
+                              : 'bg-slate-800 text-slate-400 border border-transparent hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_look_left')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReliefFlipX(true)}
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                            reliefFlipX
+                              ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50 shadow-sm'
+                              : 'bg-slate-800 text-slate-400 border border-transparent hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_look_right')}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1080,7 +1168,7 @@ const App = () => {
                 <div className="mb-4">
                   <div className="text-xs text-slate-400 mb-1.5">{t('photo_stand_position')}</div>
                   <div className="flex gap-1">
-                    {['side', 'front'].map((pos) => (
+                    {['front', 'side', 'back'].map((pos) => (
                       <button
                         key={pos}
                         type="button"
@@ -1096,6 +1184,50 @@ const App = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Çerçeve Arka Yapısı: Dolu Arka Panel vs Sadece Kenarlıklar */}
+                <div className="mb-4">
+                  <div className="text-xs text-slate-400 mb-1.5">{t('photo_frame_style')}</div>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setPhotoOnlyEdges(false)}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        !photoOnlyEdges
+                          ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
+                          : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
+                      }`}
+                    >
+                      {t('photo_frame_style_solid')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPhotoOnlyEdges(true)}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        photoOnlyEdges
+                          ? 'bg-amber-600/25 text-amber-400 border border-amber-500/50 shadow-md shadow-amber-900/10'
+                          : 'bg-slate-800/50 text-slate-400 border border-transparent hover:bg-slate-700/50'
+                      }`}
+                    >
+                      {t('photo_frame_style_edges')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 Kenar / Üst Kenarlık Kapat Toggle */}
+                <label className="flex items-center gap-3 mb-4 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={photoHasTopEdge}
+                      onChange={(e) => setPhotoHasTopEdge(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-700 rounded-full peer-checked:bg-amber-600 transition-colors" />
+                    <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full peer-checked:translate-x-4 transition-transform" />
+                  </div>
+                  <span className="text-xs text-slate-300 font-medium">{t('photo_has_top_edge')}</span>
+                </label>
 
                 {/* Standart boyut presetleri */}
                 <div className="mb-4">
@@ -1130,7 +1262,14 @@ const App = () => {
                 <Slider label={t('photo_height')} value={photoHeight} onChange={setPhotoHeight} min={25} max={200} step={1} />
                 <Slider label={t('stand_frame_thickness')} value={standFrameThickness} onChange={setStandFrameThickness} min={1} max={6} step={0.5} />
                 <Slider label={t('stand_frame_depth')} value={standFrameDepth} onChange={setStandFrameDepth} min={2} max={12} step={0.5} />
-                <Slider label={t('photo_back_thickness')} value={photoBackThickness} onChange={setPhotoBackThickness} min={1.5} max={15} step={0.5} />
+                <Slider
+                  label={photoOnlyEdges ? t('photo_back_edge_thickness') : t('photo_back_thickness')}
+                  value={photoBackThickness}
+                  onChange={setPhotoBackThickness}
+                  min={1.5}
+                  max={15}
+                  step={0.5}
+                />
                 <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={0} max={60} step={1} />
                 <Slider
                   label={photoStandPosition === 'front' ? t('photo_offset_front') : t('photo_offset_side')}
@@ -1361,6 +1500,9 @@ const App = () => {
                   castleReliefDepth={castleReliefDepth}
                   reliefMode={reliefMode}
                   reliefScale={reliefScale}
+                  castleReliefElevation={castleReliefElevation}
+                  castleReliefAngle={castleReliefAngle}
+                  reliefFlipX={reliefFlipX}
                   materialColor={materialColor}
                   doorColor={doorColor}
                   topExtension={topExtension}
@@ -1404,6 +1546,8 @@ const App = () => {
                   frameThickness={standFrameThickness}
                   frameDepth={standFrameDepth}
                   backPlateThickness={photoBackThickness}
+                  onlyEdges={photoOnlyEdges}
+                  hasTopEdge={photoHasTopEdge}
                   distance={photoDistance}
                   offset={photoOffset}
                   tilt={photoTilt}
