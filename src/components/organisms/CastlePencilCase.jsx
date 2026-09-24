@@ -738,9 +738,13 @@ const CastlePencilCase = ({
   castleFont = 'Plus_Jakarta_Sans_Bold.json',
   castleTextHeight = 20,
   castleTextDepth = 2,
-  castleTextPosition = 'cornice', // 'cornice' | 'body'
-  castleTextSpacing = 1,
-  castleTextArc = 360,
+  castleTextMode = 'emboss', // 'emboss' | 'engrave'
+  castleTextPosition = 'custom', // 'custom' | 'cornice' | 'wall'
+  castleTextElevation = 70, // mm (from base)
+  castleTextAngle = 0, // degrees (0 to 360)
+  castleTextSpacing = 1, // mm
+  castleTextWidthScale = 1.0, // multiplier
+  castleTextRepeat = 'single', // 'single' | 'all_sides'
   groupRef,
 }) => {
   const isCylinder = shape === 'cylinder';
@@ -751,111 +755,337 @@ const CastlePencilCase = ({
   const fontPath = `/fonts/${castleFont}`;
   const font = useLoader(FontLoader, fontPath);
 
-  // Generate castle text geometry
-  const castleTextGeom = useMemo(() => {
+  // Generate castle text geometries (Emboss & Engrave on Cylinder & Square)
+  const castleTextMeshes = useMemo(() => {
     if (!castleText || !castleText.trim() || !font) return null;
     const text = castleText.trim().toLocaleUpperCase('tr-TR');
-    
-    // Calculate radius for text placement (embedded slightly into the wall for clean manifold union and no floating gap)
-    const embed = 0.2; // 0.2mm penetration into the wall so it firmly contacts and fuses with the surface
-    let radius, yPos;
-    if (isCylinder) {
-      if (castleTextPosition === 'cornice') {
-        radius = outerDiameter / 2 + topExtension + castleTextDepth / 2 - embed;
-      } else {
-        radius = outerDiameter / 2 + castleTextDepth / 2 - embed;
-      }
-      yPos = castleTextPosition === 'cornice' ? height - corniceHeight / 2 : height / 2;
+    if (text.length === 0) return null;
+
+    const depth = Math.max(0.4, Number(castleTextDepth) || 2);
+    const fontSize = Math.max(6, Number(castleTextHeight) || 20);
+    const spacing = Math.max(0, Number(castleTextSpacing) || 0);
+    const wScale = Math.max(0.4, Math.min(2.5, Number(castleTextWidthScale) || 1.0));
+    const embed = 0.25; // embed penetration into the wall so it firmly fuses in STL
+
+    // 1. Determine Elevation (Y position)
+    let yPos = castleTextElevation ?? 70;
+    if (castleTextPosition === 'cornice') {
+      yPos = height - corniceHeight / 2;
     } else {
-      const s = outerSize / 2;
-      if (castleTextPosition === 'cornice') {
-        radius = s + topExtension + castleTextDepth / 2 - embed;
-        yPos = height - corniceHeight / 2;
-      } else {
-        radius = s + castleTextDepth / 2 - embed;
-        yPos = height / 2;
-      }
+      const minY = baseHeight + fontSize / 2 + 2;
+      const maxY = height - (topExtension > 0 ? corniceHeight : 0) - fontSize / 2 - 2;
+      yPos = Math.min(Math.max(minY, yPos), Math.max(minY, maxY));
     }
 
-    // Helper: 45° cantilevered chamfer transition from wall surface to text face (like castle cornice flare)
-    // Eliminates 90° horizontal overhangs so text prints cleanly without supports
-    const apply45DegreeChamfer = (geometry, depth) => {
+    // 2. Base Angle and Repeat Offsets
+    const baseAngleRad = ((Number(castleTextAngle) || 0) * Math.PI) / 180;
+    const angleOffsets = castleTextRepeat === 'all_sides'
+      ? [0, Math.PI / 2, Math.PI, (3 * Math.PI) / 2]
+      : [0];
+
+    // Helper: 45° cantilevered chamfer transition from wall surface to text face
+    const apply45DegreeChamfer = (geometry, d) => {
       const pos = geometry.getAttribute('position');
       for (let i = 0; i < pos.count; i++) {
         const z = pos.getZ(i);
         const y = pos.getY(i);
-        // z runs from -depth / 2 (wall surface) to +depth / 2 (front face)
-        // factor: 1 at wall (back), 0 at front tip
-        const factor = THREE.MathUtils.clamp((depth / 2 - z) / depth, 0, 1);
-        pos.setY(i, y - factor * depth);
+        const factor = THREE.MathUtils.clamp((d / 2 - z) / d, 0, 1);
+        pos.setY(i, y - factor * d);
       }
       geometry.computeVertexNormals();
     };
 
-    if (isCylinder) {
-      // Per-character geometries wrapped around the cylinder
-      const charData = [];
-      let totalWidth = 0;
-      for (let i = 0; i < text.length; i++) {
-        const shapes = font.generateShapes(text[i], castleTextHeight);
-        const geom = new THREE.ExtrudeGeometry(shapes, {
-          depth: castleTextDepth,
-          bevelEnabled: false,
+    const meshes = [];
+
+    // ==========================================
+    // A) EMBOSS MODE (KABARTMALI)
+    // ==========================================
+    if (castleTextMode === 'emboss') {
+      if (isCylinder) {
+        // Cylindrical Emboss: Wrap characters around cylinder along arc
+        const R = (castleTextPosition === 'cornice'
+          ? outerDiameter / 2 + topExtension
+          : outerDiameter / 2) + depth / 2 - embed;
+
+        // Generate per-character extrusions scaled in X
+        const charData = [];
+        let totalW = 0;
+        for (let i = 0; i < text.length; i++) {
+          const char = text[i];
+          if (char === ' ') {
+            const spaceW = fontSize * 0.35 * wScale;
+            charData.push({ isSpace: true, width: spaceW });
+            totalW += spaceW;
+            continue;
+          }
+          const shapes = font.generateShapes(char, fontSize);
+          const geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
+          if (wScale !== 1.0) {
+            geom.scale(wScale, 1, 1);
+          }
+          geom.computeBoundingBox();
+          const box = geom.boundingBox;
+          const charW = box.max.x - box.min.x;
+          const charH = box.max.y - box.min.y;
+          // Center character locally
+          geom.translate(-box.min.x - charW / 2, -box.min.y - charH / 2, -depth / 2);
+
+          // Apply 45° chamfer on body for overhang support
+          if (castleTextPosition !== 'cornice') {
+            apply45DegreeChamfer(geom, depth);
+          } else {
+            geom.computeVertexNormals();
+          }
+
+          charData.push({ isSpace: false, geom, width: charW });
+          totalW += charW;
+        }
+
+        const totalWithSpacing = totalW + spacing * (text.length - 1);
+
+        angleOffsets.forEach((aOffset, sideIdx) => {
+          const centerAngle = baseAngleRad + aOffset;
+          let currentX = -totalWithSpacing / 2;
+
+          charData.forEach((cd, charIdx) => {
+            if (cd.isSpace) {
+              currentX += cd.width + spacing;
+              return;
+            }
+            const charCenter = currentX + cd.width / 2;
+            currentX += cd.width + spacing;
+            const charAngle = centerAngle + charCenter / R;
+            const posX = R * Math.sin(charAngle);
+            const posZ = R * Math.cos(charAngle);
+            const rotY = charAngle;
+
+            meshes.push({
+              key: `emb-cyl-${sideIdx}-${charIdx}`,
+              geom: cd.geom,
+              position: [posX, yPos, posZ],
+              rotation: [0, rotY, 0],
+            });
+          });
         });
+      } else {
+        // Square Emboss: Place text on flat faces
+        const s = outerSize / 2;
+        const R = (castleTextPosition === 'cornice' ? s + topExtension : s) + depth / 2 - embed;
+
+        // Generate full unified text extrusion
+        const shapes = font.generateShapes(text, fontSize);
+        const geom = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false });
+        if (wScale !== 1.0) {
+          geom.scale(wScale, 1, 1);
+        }
         geom.computeBoundingBox();
         const box = geom.boundingBox;
-        const charWidth = box.max.x - box.min.x;
-        geom.translate(-box.min.x - charWidth / 2, 0, -castleTextDepth / 2);
+        const textW = box.max.x - box.min.x;
+        const textH = box.max.y - box.min.y;
+        geom.translate(-box.min.x - textW / 2, -box.min.y - textH / 2, -depth / 2);
 
-        // Apply 45° self-supporting chamfer transition on body wall
-        if (castleTextPosition === 'body') {
-          apply45DegreeChamfer(geom, castleTextDepth);
+        if (castleTextPosition !== 'cornice') {
+          apply45DegreeChamfer(geom, depth);
         } else {
           geom.computeVertexNormals();
         }
 
-        charData.push({ geom, width: charWidth });
-        totalWidth += charWidth;
+        angleOffsets.forEach((aOffset, sideIdx) => {
+          const rad = baseAngleRad + aOffset;
+          const sinA = Math.sin(rad);
+          const cosA = Math.cos(rad);
+          let posX = 0, posZ = 0, rotY = 0;
+
+          if (Math.abs(cosA) >= Math.abs(sinA)) {
+            if (cosA >= 0) {
+              // Front (+Z)
+              posX = Math.min(Math.max(s * (sinA / cosA), -s), s);
+              posZ = R;
+              rotY = 0;
+            } else {
+              // Back (-Z)
+              posX = Math.min(Math.max(-s * (sinA / Math.abs(cosA)), -s), s);
+              posZ = -R;
+              rotY = Math.PI;
+            }
+          } else {
+            if (sinA >= 0) {
+              // Right (+X)
+              posX = R;
+              posZ = Math.min(Math.max(s * (cosA / sinA), -s), s);
+              rotY = Math.PI / 2;
+            } else {
+              // Left (-X)
+              posX = -R;
+              posZ = Math.min(Math.max(-s * (cosA / Math.abs(sinA)), -s), s);
+              rotY = -Math.PI / 2;
+            }
+          }
+
+          meshes.push({
+            key: `emb-sq-${sideIdx}`,
+            geom,
+            position: [posX, yPos, posZ],
+            rotation: [0, rotY, 0],
+          });
+        });
       }
-      const spacing = castleTextSpacing;
-      const totalWithSpacing = totalWidth + spacing * (text.length - 1);
-      let currentX = -totalWithSpacing / 2;
-      return charData.map((cd) => {
-        const angle = currentX / radius;
-        currentX += cd.width + spacing;
-        return {
-          geom: cd.geom,
-          position: [
-            radius * Math.sin(angle),
-            yPos,
-            radius * Math.cos(angle),
-          ],
-          rotation: [0, angle, 0],
-        };
+    }
+    // ==========================================
+    // B) ENGRAVE MODE (GÖMME / OYMA)
+    // ==========================================
+    else {
+      // Engraved Plaque / Cartouche (Oyma Tabela):
+      // An elegant stone/wood plaque with the text hollowed out as holes.
+      let shapes = font.generateShapes(text, fontSize);
+      if (!shapes || shapes.length === 0) return null;
+
+      // Calculate bounds of text shapes
+      const tempGeom = new THREE.ShapeGeometry(shapes);
+      tempGeom.computeBoundingBox();
+      const tBox = tempGeom.boundingBox;
+      const tSize = tBox.getSize(new THREE.Vector3());
+      const tCenter = tBox.getCenter(new THREE.Vector3());
+
+      const tW = tSize.x * wScale;
+      const tH = tSize.y;
+
+      // Scale and center shapes
+      const centeredShapes = shapes.map((sh) => {
+        const pts = sh.getPoints();
+        const newSh = new THREE.Shape();
+        if (pts.length === 0) return sh;
+        newSh.moveTo((pts[0].x - tCenter.x) * wScale, pts[0].y - tCenter.y);
+        for (let i = 1; i < pts.length; i++) {
+          newSh.lineTo((pts[i].x - tCenter.x) * wScale, pts[i].y - tCenter.y);
+        }
+        newSh.closePath();
+        if (sh.holes && sh.holes.length > 0) {
+          newSh.holes = sh.holes.map((hole) => {
+            const hPts = hole.getPoints();
+            const newH = new THREE.Path();
+            if (hPts.length > 0) {
+              newH.moveTo((hPts[0].x - tCenter.x) * wScale, hPts[0].y - tCenter.y);
+              for (let j = 1; j < hPts.length; j++) {
+                newH.lineTo((hPts[j].x - tCenter.x) * wScale, hPts[j].y - tCenter.y);
+              }
+              newH.closePath();
+            }
+            return newH;
+          });
+        }
+        return newSh;
       });
+
+      // Cartouche plate outer dimensions
+      const padX = Math.max(fontSize * 0.35, 6);
+      const padY = Math.max(fontSize * 0.25, 4);
+      const pw = tW + padX * 2;
+      const ph = tH + padY * 2;
+      const pr = Math.min(3, pw / 8, ph / 8); // corner radius
+
+      // Create rounded rectangle plate
+      const plateShape = new THREE.Shape();
+      plateShape.moveTo(-pw / 2 + pr, -ph / 2);
+      plateShape.lineTo(pw / 2 - pr, -ph / 2);
+      plateShape.quadraticCurveTo(pw / 2, -ph / 2, pw / 2, -ph / 2 + pr);
+      plateShape.lineTo(pw / 2, ph / 2 - pr);
+      plateShape.quadraticCurveTo(pw / 2, ph / 2, pw / 2 - pr, ph / 2);
+      plateShape.lineTo(-pw / 2 + pr, ph / 2);
+      plateShape.quadraticCurveTo(-pw / 2, ph / 2, -pw / 2, ph / 2 - pr);
+      plateShape.lineTo(-pw / 2, -ph / 2 + pr);
+      plateShape.quadraticCurveTo(-pw / 2, -ph / 2, -pw / 2 + pr, -ph / 2);
+      plateShape.closePath();
+
+      // Hollow out the letters from the plate!
+      plateShape.holes.push(...centeredShapes);
+
+      const engraveGeom = new THREE.ExtrudeGeometry(plateShape, { depth, bevelEnabled: false });
+      engraveGeom.computeVertexNormals();
+
+      // Position plaque on cylinder or square
+      if (isCylinder) {
+        const R = (castleTextPosition === 'cornice'
+          ? outerDiameter / 2 + topExtension
+          : outerDiameter / 2) + depth / 2 - embed;
+
+        angleOffsets.forEach((aOffset, sideIdx) => {
+          const rad = baseAngleRad + aOffset;
+          const posX = R * Math.sin(rad);
+          const posZ = R * Math.cos(rad);
+          const rotY = rad;
+
+          meshes.push({
+            key: `eng-cyl-${sideIdx}`,
+            geom: engraveGeom,
+            position: [posX, yPos, posZ],
+            rotation: [0, rotY, 0],
+          });
+        });
+      } else {
+        const s = outerSize / 2;
+        const R = (castleTextPosition === 'cornice' ? s + topExtension : s) + depth / 2 - embed;
+
+        angleOffsets.forEach((aOffset, sideIdx) => {
+          const rad = baseAngleRad + aOffset;
+          const sinA = Math.sin(rad);
+          const cosA = Math.cos(rad);
+          let posX = 0, posZ = 0, rotY = 0;
+
+          if (Math.abs(cosA) >= Math.abs(sinA)) {
+            if (cosA >= 0) {
+              posX = Math.min(Math.max(s * (sinA / cosA), -s), s);
+              posZ = R;
+              rotY = 0;
+            } else {
+              posX = Math.min(Math.max(-s * (sinA / Math.abs(cosA)), -s), s);
+              posZ = -R;
+              rotY = Math.PI;
+            }
+          } else {
+            if (sinA >= 0) {
+              posX = R;
+              posZ = Math.min(Math.max(s * (cosA / sinA), -s), s);
+              rotY = Math.PI / 2;
+            } else {
+              posX = -R;
+              posZ = Math.min(Math.max(-s * (cosA / Math.abs(sinA)), -s), s);
+              rotY = -Math.PI / 2;
+            }
+          }
+
+          meshes.push({
+            key: `eng-sq-${sideIdx}`,
+            geom: engraveGeom,
+            position: [posX, yPos, posZ],
+            rotation: [0, rotY, 0],
+          });
+        });
+      }
     }
 
-    const shapes = font.generateShapes(text, castleTextHeight);
-    const geom = new THREE.ExtrudeGeometry(shapes, {
-      depth: castleTextDepth,
-      bevelEnabled: false,
-    });
-    geom.computeBoundingBox();
-    const box = geom.boundingBox;
-    const textWidth = box.max.x - box.min.x;
-
-    geom.translate(-box.min.x - textWidth / 2, 0, -castleTextDepth / 2);
-
-    // Apply 45° self-supporting chamfer transition on body wall
-    if (castleTextPosition === 'body') {
-      apply45DegreeChamfer(geom, castleTextDepth);
-    } else {
-      geom.computeVertexNormals();
-    }
-
-    return { geom, radius, yPos, textWidth };
-  }, [castleText, castleFont, castleTextHeight, castleTextDepth, castleTextSpacing, castleTextPosition, 
-      isCylinder, outerDiameter, outerSize, height, topExtension, corniceHeight, wallThickness, font]);
+    return meshes;
+  }, [
+    castleText,
+    castleFont,
+    castleTextHeight,
+    castleTextDepth,
+    castleTextMode,
+    castleTextPosition,
+    castleTextElevation,
+    castleTextAngle,
+    castleTextSpacing,
+    castleTextWidthScale,
+    castleTextRepeat,
+    isCylinder,
+    outerDiameter,
+    outerSize,
+    height,
+    baseHeight,
+    topExtension,
+    corniceHeight,
+    font,
+  ]);
 
   /* --- body (manifold hollow geometry) --- */
   const bodyGeom = useMemo(() => {
@@ -1395,39 +1625,19 @@ const CastlePencilCase = ({
       {castleReliefMesh}
       {doorMesh}
       {windowMeshes}
-      {castleTextGeom && isCylinder && Array.isArray(castleTextGeom) && castleTextGeom.map((charData, i) => (
+      {castleTextMeshes && castleTextMeshes.map((item) => (
         <mesh
-          key={`castle-text-${i}`}
-          geometry={charData.geom}
+          key={item.key}
+          geometry={item.geom}
           name="CastleText"
-          position={charData.position}
-          rotation={charData.rotation}
+          position={item.position}
+          rotation={item.rotation}
           receiveShadow
           castShadow
         >
           <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} />
         </mesh>
       ))}
-      {castleTextGeom && !isCylinder && (
-        <group key={`castle-text-sq-${showBrickTexture}`} name="CastleText">
-          {[0, Math.PI / 2, Math.PI, -Math.PI / 2].map((angle, i) => (
-            <mesh
-              key={`txt-${i}`}
-              geometry={castleTextGeom.geom}
-              position={[
-                Math.sin(angle) * castleTextGeom.radius,
-                castleTextGeom.yPos,
-                Math.cos(angle) * castleTextGeom.radius
-              ]}
-              rotation={[0, angle, 0]}
-              receiveShadow
-              castShadow
-            >
-              <meshStandardMaterial color={materialColor} roughness={0.85} side={THREE.DoubleSide} />
-            </mesh>
-          ))}
-        </group>
-      )}
     </group>
   );
 };

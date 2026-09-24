@@ -73,7 +73,8 @@ const PhotoStand = ({
   photoWidth = 35,       // mm – fotoğraf genişliği
   photoHeight = 45,      // mm – fotoğraf yüksekliği
   frameThickness = 2.5,  // mm – kenar çerçeve genişliği
-  frameDepth = 3.5,      // mm – öne doğru toplam çıkıntı/kalınlık
+  frameDepth = 5.0,      // mm – öne doğru toplam çıkıntı/kalınlık
+  slotDepth = 1.0,       // mm – fotoğraf kanalı kalınlığı (1mm ve ayarlanabilir)
   backPlateThickness = 4.0, // mm – çerçevenin arka duvar kalınlığı (ayarlanabilir, sur gibi tok durur)
   onlyEdges = false,     // boolean – sadece kenarlıklar (arka panel içi boş, ortası açık pencere)
   hasTopEdge = false,    // boolean – üst kenarlık kapat (4 kenarlı kapalı çerçeve)
@@ -100,18 +101,24 @@ const PhotoStand = ({
 }) => {
   const outerR = shape === 'cylinder' ? outerDiameter / 2 : outerSize / 2;
 
-  // Çerçevenin dış toplam boyutları
-  const totalW = photoWidth + frameThickness * 2;
-  const totalH = photoHeight + frameThickness + (hasTopEdge ? frameThickness : 0);
+  // Fotoğraf kanalı (slot / U-groove) ve çıta boyut hesaplamaları
+  const slotThick = Math.max(0.5, Number(slotDepth) || 1.0);
+  // Çerçevenin toplam ön derinliği (kanal kalınlığı + ön tırnak payı)
+  const effectiveFrameDepth = Math.max(frameDepth, slotThick + 1.0);
+  const frontLipThick = effectiveFrameDepth - slotThick;
+
+  // Fotoğraf yuvası toleransı ve çıta profili:
+  const slotW = photoWidth + 0.6; // Fotoğrafın rahat kayması için 0.6mm boşluk
+  const slotH = photoHeight + 0.6;
+  const wallThick = Math.max(1.2, frameThickness * 0.45); // Dış taşıyıcı duvar kalınlığı
+  const lipOverlap = Math.max(0.8, frameThickness - wallThick); // Fotoğrafı önden tutan tırnak payı
+  const totalW = slotW + 2 * wallThick;
+  const bottomWallThick = wallThick;
+  const totalH = bottomWallThick + slotH + (hasTopEdge ? wallThick : 0);
+  const lipWidth = frameThickness; // Ön çıta genişliği
 
   // Arka plaka kalınlığı (kullanıcının ayarladığı değer, min 1.5mm)
   const backPlateThick = Math.max(1.5, backPlateThickness);
-  // Fotoğraf yuvası boşluğu (derinlik)
-  const slotDepth = 1.0; // mm
-  // Çerçevenin toplam ön derinliği (rayların çıkıntısı)
-  const effectiveFrameDepth = Math.max(frameDepth, 3.0);
-  const frontLipThick = Math.max(0.8, effectiveFrameDepth - slotDepth);
-  const lipWidth = frameThickness;
 
   const brickTex = useMemo(() => (showBrickTexture ? createBrickTexture() : null), [showBrickTexture]);
 
@@ -162,53 +169,47 @@ const PhotoStand = ({
     return g;
   }, [onlyEdges, hasTopEdge, totalW, frameThickness, totalH, backPlateThick]);
 
-  // 2. Alt Destek Rayı (Z ekseninde 0'dan +effectiveFrameDepth yönüne doğru öne uzanır)
-  const bottomRailGeom = useMemo(() => {
-    const g = new THREE.BoxGeometry(totalW, frameThickness, effectiveFrameDepth);
-    g.translate(0, frameThickness / 2, effectiveFrameDepth / 2);
-    applyBoxWorldUV(g, 25.5, 11.5);
-    return g;
-  }, [totalW, frameThickness, effectiveFrameDepth]);
-
-  // 2b. Üst Destek Rayı (4 Kenar Modunda)
-  const topRailGeom = useMemo(() => {
-    if (!hasTopEdge) return null;
-    const g = new THREE.BoxGeometry(totalW, frameThickness, effectiveFrameDepth);
-    g.translate(0, totalH - frameThickness / 2, effectiveFrameDepth / 2);
-    applyBoxWorldUV(g, 25.5, 11.5);
-    return g;
-  }, [hasTopEdge, totalW, frameThickness, totalH, effectiveFrameDepth]);
-
-  // 3. Sol ve Sağ Yan Raylar
-  const sideRailGeom = useMemo(() => {
-    const g = new THREE.BoxGeometry(frameThickness, totalH, effectiveFrameDepth);
+  // 2. Yan Dış Taşıyıcı Duvarlar (Fotoğraf kanalını dıştan sınırlayan çıta gövdeleri)
+  // X = wallThick, Y = totalH, Z = 0'dan effectiveFrameDepth'e kadar
+  const sideWallGeom = useMemo(() => {
+    const g = new THREE.BoxGeometry(wallThick, totalH, effectiveFrameDepth);
     g.translate(0, totalH / 2, effectiveFrameDepth / 2);
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
-  }, [frameThickness, totalH, effectiveFrameDepth]);
+  }, [wallThick, totalH, effectiveFrameDepth]);
 
-  // 4. Ön Tutucu Tırnaklar (U profil)
-  const frontLipSideGeom = useMemo(() => {
-    const g = new THREE.BoxGeometry(lipWidth, totalH, frontLipThick);
-    g.translate(0, totalH / 2, effectiveFrameDepth - frontLipThick / 2);
+  // 3. Alt Taban Duvarı (Fotoğrafın üzerine oturduğu alt sınır desteği)
+  // X = totalW, Y = bottomWallThick, Z = 0'dan effectiveFrameDepth'e kadar
+  const bottomWallGeom = useMemo(() => {
+    const g = new THREE.BoxGeometry(totalW, bottomWallThick, effectiveFrameDepth);
+    g.translate(0, bottomWallThick / 2, effectiveFrameDepth / 2);
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
-  }, [lipWidth, totalH, frontLipThick, effectiveFrameDepth]);
+  }, [totalW, bottomWallThick, effectiveFrameDepth]);
+
+  // 4. Ön Tutucu Çıtalar / Tırnaklar (Z ekseninde slotThick'ten effectiveFrameDepth'e kadar uzanır)
+  // [0, slotThick] arası tamamen boştur ve fotoğrafın çıtaların içine kayarak girdiği kanaldır.
+  const frontLipSideGeom = useMemo(() => {
+    const g = new THREE.BoxGeometry(lipWidth, totalH, frontLipThick);
+    g.translate(0, totalH / 2, slotThick + frontLipThick / 2);
+    applyBoxWorldUV(g, 25.5, 11.5);
+    return g;
+  }, [lipWidth, totalH, frontLipThick, slotThick]);
 
   const frontLipBottomGeom = useMemo(() => {
     const g = new THREE.BoxGeometry(totalW, lipWidth, frontLipThick);
-    g.translate(0, lipWidth / 2, effectiveFrameDepth - frontLipThick / 2);
+    g.translate(0, lipWidth / 2, slotThick + frontLipThick / 2);
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
-  }, [totalW, lipWidth, frontLipThick, effectiveFrameDepth]);
+  }, [totalW, lipWidth, frontLipThick, slotThick]);
 
   const frontLipTopGeom = useMemo(() => {
     if (!hasTopEdge) return null;
     const g = new THREE.BoxGeometry(totalW, lipWidth, frontLipThick);
-    g.translate(0, totalH - lipWidth / 2, effectiveFrameDepth - frontLipThick / 2);
+    g.translate(0, totalH - lipWidth / 2, slotThick + frontLipThick / 2);
     applyBoxWorldUV(g, 25.5, 11.5);
     return g;
-  }, [hasTopEdge, totalW, lipWidth, frontLipThick, totalH, effectiveFrameDepth]);
+  }, [hasTopEdge, totalW, lipWidth, frontLipThick, totalH, slotThick]);
 
   // 5. Üst Surlar / Mazgallar (Crenellations)
   const crenellationsData = useMemo(() => {
@@ -431,33 +432,28 @@ const PhotoStand = ({
           </>
         )}
 
-        {/* Alt Destek Rayı */}
-        <mesh geometry={bottomRailGeom} material={mat} castShadow receiveShadow />
+        {/* Alt Taban Duvarı (Fotoğrafın üzerine oturduğu taban) */}
+        <mesh geometry={bottomWallGeom} material={mat} castShadow receiveShadow />
 
-        {/* Üst Ray (4 Kenar Modunda) */}
-        {hasTopEdge && topRailGeom && (
-          <mesh geometry={topRailGeom} material={mat} castShadow receiveShadow />
-        )}
-
-        {/* Sol Yan Ray */}
+        {/* Sol Dış Yan Duvar */}
         <mesh
-          geometry={sideRailGeom}
+          geometry={sideWallGeom}
           material={mat}
-          position={[-totalW / 2 + frameThickness / 2, 0, 0]}
+          position={[-totalW / 2 + wallThick / 2, 0, 0]}
           castShadow
           receiveShadow
         />
 
-        {/* Sağ Yan Ray */}
+        {/* Sağ Dış Yan Duvar */}
         <mesh
-          geometry={sideRailGeom}
+          geometry={sideWallGeom}
           material={mat}
-          position={[totalW / 2 - frameThickness / 2, 0, 0]}
+          position={[totalW / 2 - wallThick / 2, 0, 0]}
           castShadow
           receiveShadow
         />
 
-        {/* Ön Sol Tırnak */}
+        {/* Ön Sol Tutucu Çıta */}
         <mesh
           geometry={frontLipSideGeom}
           material={mat}
@@ -466,7 +462,7 @@ const PhotoStand = ({
           receiveShadow
         />
 
-        {/* Ön Sağ Tırnak */}
+        {/* Ön Sağ Tutucu Çıta */}
         <mesh
           geometry={frontLipSideGeom}
           material={mat}
@@ -475,10 +471,10 @@ const PhotoStand = ({
           receiveShadow
         />
 
-        {/* Ön Alt Tırnak */}
+        {/* Ön Alt Tutucu Çıta */}
         <mesh geometry={frontLipBottomGeom} material={mat} castShadow receiveShadow />
 
-        {/* Ön Üst Tırnak (4 Kenar Modunda) */}
+        {/* Ön Üst Tutucu Çıta (4 Kenar Modunda) */}
         {hasTopEdge && frontLipTopGeom && (
           <mesh geometry={frontLipTopGeom} material={mat} castShadow receiveShadow />
         )}

@@ -75,8 +75,13 @@ const App = () => {
   const [castleFont, setCastleFont] = useState('Plus_Jakarta_Sans_Bold.json');
   const [castleTextHeight, setCastleTextHeight] = useState(20);
   const [castleTextDepth, setCastleTextDepth] = useState(2);
-  const [castleTextPosition, setCastleTextPosition] = useState('cornice');
+  const [castleTextMode, setCastleTextMode] = useState('emboss'); // 'emboss' | 'engrave'
+  const [castleTextPosition, setCastleTextPosition] = useState('custom'); // 'custom' | 'cornice' | 'wall'
+  const [castleTextElevation, setCastleTextElevation] = useState(70); // mm (yerden yükseklik)
+  const [castleTextAngle, setCastleTextAngle] = useState(0); // 0: Ön, 90: Sağ, 180: Arka, 270: Sol
   const [castleTextSpacing, setCastleTextSpacing] = useState(1);
+  const [castleTextWidthScale, setCastleTextWidthScale] = useState(100); // % (genişlik oranı, 100 = %100)
+  const [castleTextRepeat, setCastleTextRepeat] = useState('single'); // 'single' | 'all_sides'
   const [showBrickTexture, setShowBrickTexture] = useState(true);
   const [embossedBricks, setEmbossedBricks] = useState(false);
   const [brickDepth, setBrickDepth] = useState(1.5);
@@ -128,6 +133,7 @@ const App = () => {
   const [photoHeight, setPhotoHeight] = useState(45);
   const [standFrameThickness, setStandFrameThickness] = useState(2.5);
   const [standFrameDepth, setStandFrameDepth] = useState(5);
+  const [photoSlotDepth, setPhotoSlotDepth] = useState(1.0); // mm - Fotoğraf kanalı kalınlığı (1mm varsayılan, ayarlanabilir)
   const [photoOnlyEdges, setPhotoOnlyEdges] = useState(false); // Sadece kenarlıklar (içi boş / arkalıksız çerçeve)
   const [photoHasTopEdge, setPhotoHasTopEdge] = useState(false); // 4 kenarlı çerçeve (üst kenarlık kapat)
   const [photoBackThickness, setPhotoBackThickness] = useState(4); // mm - çerçevenin arka duvar kalınlığı (varsayılan 4 mm sur görünümü için)
@@ -878,21 +884,65 @@ const App = () => {
               </div>
 
               {/* CASTLE TEXT */}
-              <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800">
-                <h2 className="text-xs font-bold tracking-wider text-slate-500 mb-4 uppercase">
-                  {t('castle_text')}
-                </h2>
-                <div className="mb-3">
+              <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                    {t('castle_text')}
+                  </h2>
+                  {castleText && (
+                    <button
+                      type="button"
+                      onClick={() => setCastleText('')}
+                      className="text-[10px] text-amber-500/80 hover:text-amber-400 font-medium transition-colors"
+                    >
+                      {t('clear') || 'Temizle'}
+                    </button>
+                  )}
+                </div>
+
+                {/* YAZI MODU: KABARTMA / GÖMME */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">{t('castle_text_mode')}</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextMode('emboss')}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                        castleTextMode === 'emboss'
+                          ? 'bg-amber-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      🔤 {t('text_mode_emboss')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextMode('engrave')}
+                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
+                        castleTextMode === 'engrave'
+                          ? 'bg-amber-600 text-white shadow-sm'
+                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                      }`}
+                    >
+                      🔲 {t('text_mode_engrave')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* METİN GİRİŞİ */}
+                <div>
                   <label className="block text-xs text-slate-400 mb-1">{t('text_label')}</label>
                   <input
                     type="text"
                     value={castleText}
                     onChange={(e) => setCastleText(e.target.value.toLocaleUpperCase('tr-TR'))}
                     className="w-full bg-slate-800 text-white border border-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-500"
-                    placeholder={t('text_placeholder')}
+                    placeholder="Örn: ENDER, KALE, 2026..."
                   />
                 </div>
-                <div className="mb-3">
+
+                {/* YAZI TİPİ (FONT) */}
+                <div>
                   <label className="block text-xs text-slate-400 mb-1">{t('font_label')}</label>
                   <select
                     value={castleFont}
@@ -906,20 +956,193 @@ const App = () => {
                     ))}
                   </select>
                 </div>
-                <div className="mb-3">
-                  <label className="block text-xs text-slate-400 mb-1">{t('castle_text_position')}</label>
-                  <select
-                    value={castleTextPosition}
-                    onChange={(e) => setCastleTextPosition(e.target.value)}
-                    className="w-full bg-slate-800 text-white border border-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:border-amber-500"
-                  >
-                    <option value="cornice">{t('text_pos_cornice')}</option>
-                    <option value="wall">{t('text_pos_wall')}</option>
-                  </select>
+
+                {/* YERLEŞİM DÜZENİ: TEK CEPHE vs 4 CEPHE */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">{t('castle_text_repeat')}</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextRepeat('single')}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        castleTextRepeat === 'single'
+                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t('text_repeat_single')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextRepeat('all_sides')}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        castleTextRepeat === 'all_sides'
+                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t('text_repeat_all')}
+                    </button>
+                  </div>
                 </div>
-                <Slider label={t('castle_text_height')} value={castleTextHeight} onChange={setCastleTextHeight} min={10} max={60} step={1} />
-                <Slider label={t('castle_text_depth')} value={castleTextDepth} onChange={setCastleTextDepth} min={0.5} max={5} step={0.25} />
-                <Slider label={t('castle_text_spacing')} value={castleTextSpacing} onChange={setCastleTextSpacing} min={0} max={5} step={0.25} />
+
+                {/* KONUM TİPİ: SERBEST KONUM vs TAÇ */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">{t('castle_text_position')}</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextPosition('custom')}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        castleTextPosition === 'custom'
+                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      🎯 {t('text_pos_custom')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextPosition('cornice')}
+                      className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                        castleTextPosition === 'cornice'
+                          ? 'bg-amber-600/30 text-amber-300 border border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      👑 {t('text_pos_cornice')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* YERDEN YÜKSEKLİK SLIDER VE HIZLI BUTONLAR (custom ise) */}
+                {castleTextPosition === 'custom' && (
+                  <div>
+                    <Slider
+                      label={t('castle_text_elevation')}
+                      value={castleTextElevation}
+                      onChange={setCastleTextElevation}
+                      min={baseHeight + 5}
+                      max={height - (topExtension > 0 ? corniceHeight : 0) - 5}
+                      step={1}
+                    />
+                    <div className="flex gap-1 mb-2">
+                      <button
+                        type="button"
+                        onClick={() => setCastleTextElevation(30)}
+                        className="flex-1 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 text-[10px] font-medium"
+                      >
+                        {t('snap_elev_low')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCastleTextElevation(Math.round(height / 2))}
+                        className="flex-1 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 text-[10px] font-medium"
+                      >
+                        {t('snap_elev_mid')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCastleTextElevation(Math.min(110, height - 20))}
+                        className="flex-1 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 text-[10px] font-medium"
+                      >
+                        {t('snap_elev_high')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* AÇI / YÖN SLIDER VE HIZLI BUTONLAR */}
+                <div>
+                  <Slider
+                    label={t('castle_text_angle')}
+                    value={castleTextAngle}
+                    onChange={setCastleTextAngle}
+                    min={0}
+                    max={360}
+                    step={5}
+                  />
+                  <div className="grid grid-cols-4 gap-1 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextAngle(0)}
+                      className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                        castleTextAngle === 0
+                          ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t('snap_angle_front')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextAngle(90)}
+                      className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                        castleTextAngle === 90
+                          ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t('snap_angle_right')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextAngle(180)}
+                      className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                        castleTextAngle === 180
+                          ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t('snap_angle_back')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCastleTextAngle(270)}
+                      className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                        castleTextAngle === 270
+                          ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t('snap_angle_left')}
+                    </button>
+                  </div>
+                </div>
+
+                {/* BOYUT VE DERİNLİK SLIDER'LARI */}
+                <Slider
+                  label={t('castle_text_height')}
+                  value={castleTextHeight}
+                  onChange={setCastleTextHeight}
+                  min={8}
+                  max={50}
+                  step={1}
+                />
+                <Slider
+                  label={t('castle_text_width_scale')}
+                  value={castleTextWidthScale}
+                  onChange={setCastleTextWidthScale}
+                  min={50}
+                  max={160}
+                  step={5}
+                />
+                <Slider
+                  label={t('castle_text_depth')}
+                  value={castleTextDepth}
+                  onChange={setCastleTextDepth}
+                  min={0.5}
+                  max={5}
+                  step={0.25}
+                />
+                <Slider
+                  label={t('castle_text_spacing')}
+                  value={castleTextSpacing}
+                  onChange={setCastleTextSpacing}
+                  min={0}
+                  max={8}
+                  step={0.5}
+                />
               </div>
             </>
           )}
@@ -1263,6 +1486,30 @@ const App = () => {
                 <Slider label={t('stand_frame_thickness')} value={standFrameThickness} onChange={setStandFrameThickness} min={1} max={6} step={0.5} />
                 <Slider label={t('stand_frame_depth')} value={standFrameDepth} onChange={setStandFrameDepth} min={2} max={12} step={0.5} />
                 <Slider
+                  label={t('photo_slot_depth')}
+                  value={photoSlotDepth}
+                  onChange={setPhotoSlotDepth}
+                  min={0.5}
+                  max={5}
+                  step={0.1}
+                />
+                <div className="flex gap-1 mb-3">
+                  {[0.8, 1.0, 1.5, 2.0, 3.0].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setPhotoSlotDepth(val)}
+                      className={`flex-1 py-1 rounded text-[10px] font-medium border transition-colors ${
+                        photoSlotDepth === val
+                          ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                          : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                      }`}
+                    >
+                      {val} mm
+                    </button>
+                  ))}
+                </div>
+                <Slider
                   label={photoOnlyEdges ? t('photo_back_edge_thickness') : t('photo_back_thickness')}
                   value={photoBackThickness}
                   onChange={setPhotoBackThickness}
@@ -1511,8 +1758,13 @@ const App = () => {
                   castleFont={castleFont}
                   castleTextHeight={castleTextHeight}
                   castleTextDepth={castleTextDepth}
+                  castleTextMode={castleTextMode}
                   castleTextPosition={castleTextPosition}
+                  castleTextElevation={castleTextElevation}
+                  castleTextAngle={castleTextAngle}
                   castleTextSpacing={castleTextSpacing}
+                  castleTextWidthScale={castleTextWidthScale / 100}
+                  castleTextRepeat={castleTextRepeat}
                   groupRef={groupRef}
                 />
               ) : (
@@ -1545,6 +1797,7 @@ const App = () => {
                   photoHeight={photoHeight}
                   frameThickness={standFrameThickness}
                   frameDepth={standFrameDepth}
+                  slotDepth={photoSlotDepth}
                   backPlateThickness={photoBackThickness}
                   onlyEdges={photoOnlyEdges}
                   hasTopEdge={photoHasTopEdge}
