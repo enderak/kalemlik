@@ -1727,9 +1727,20 @@ const App = () => {
               maxPolarAngle={Math.PI / 1.8}
               target={[0, 2, 0]}
             />
-            <ambientLight intensity={0.6} />
-            <directionalLight position={[5, 10, 5]} intensity={1.2} castShadow />
-            <pointLight position={[-5, 5, -5]} intensity={0.5} />
+            {/* 360° Dengeli Stüdyo Aydınlatması */}
+            <ambientLight intensity={0.85} />
+            {/* Ön-Sağ Ana Işık (Gölgeli) */}
+            <directionalLight position={[10, 15, 10]} intensity={1.2} castShadow shadow-mapSize-width={1024} shadow-mapSize-height={1024} />
+            {/* Arka-Sol Ana Işık (Arkadan bakıldığında net görünüm) */}
+            <directionalLight position={[-10, 12, -10]} intensity={1.1} />
+            {/* Arka-Sağ Dolgu Işığı */}
+            <directionalLight position={[10, 10, -10]} intensity={0.8} />
+            {/* Ön-Sol Dolgu Işığı */}
+            <directionalLight position={[-10, 10, 10]} intensity={0.7} />
+            {/* Tepe Işığı (Kalemlik içini ve üst detayları aydınlatır) */}
+            <pointLight position={[0, 16, 0]} intensity={0.6} />
+            {/* Arka Merkez Dolgu Işığı */}
+            <pointLight position={[0, 6, -10]} intensity={0.7} />
 
             <group ref={mainGroupRef} scale={[SCALE, SCALE, SCALE]}>
               {mode === 'castle' ? (
