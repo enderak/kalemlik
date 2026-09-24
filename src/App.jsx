@@ -521,6 +521,13 @@ const App = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => applyPresetSize(75, 150)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_medium')}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => applyPresetSize(60, 180)}
                       className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
                     >
@@ -543,7 +550,7 @@ const App = () => {
                     <button
                       type="button"
                       onClick={() => applyPresetSize(80, 100)}
-                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors col-span-2"
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
                     >
                       {t('preset_size_compact')}
                     </button>
@@ -1248,6 +1255,13 @@ const App = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => applyPresetSize(75, 150)}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      {t('preset_size_medium')}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => applyPresetSize(60, 180)}
                       className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
                     >
@@ -1270,7 +1284,7 @@ const App = () => {
                     <button
                       type="button"
                       onClick={() => applyPresetSize(80, 100)}
-                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors col-span-2"
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
                     >
                       {t('preset_size_compact')}
                     </button>
@@ -1472,8 +1486,15 @@ const App = () => {
                     </button>
                     <button
                       type="button"
+                      onClick={() => { setPhotoWidth(75); setPhotoHeight(150); }}
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
+                    >
+                      7.5 × 15 cm
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => { setPhotoWidth(100); setPhotoHeight(150); }}
-                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors col-span-2"
+                      className="py-1 px-2 rounded bg-slate-800 text-slate-300 border border-slate-700 hover:border-amber-500/50 hover:bg-slate-700 text-[10px] font-medium transition-colors"
                     >
                       10 × 15 cm
                     </button>
