@@ -179,6 +179,19 @@ const resources = {
       "export_stand_btn": "⬇ Fotoğraf Tutacağı STL",
       "export_combined_btn": "⬇ Kalemlik + Çerçeve Bir Arada (STL)",
       "export_colored_btn": "🎨 Renkli Model İndir (OBJ + MTL Zip)",
+      "templates_title": "💾 ŞABLONLAR VE PAYLAŞIM",
+      "save_template": "Mevcut Ayarları Şablon Olarak Kaydet",
+      "save_btn": "Kaydet",
+      "template_name_placeholder": "Şablon adı girin...",
+      "my_saved_templates": "Kayıtlı Şablonlarım",
+      "export_template_btn": "JSON Olarak Paylaş / İndir",
+      "import_template_btn": "Şablon Dosyası Yükle (.json)",
+      "delete_template": "Sil",
+      "load_template": "Yükle",
+      "template_saved_success": "Şablon başarıyla kaydedildi!",
+      "template_imported_success": "Şablon başarıyla içe aktarıldı ve uygulandı!",
+      "template_invalid_format": "Geçersiz şablon dosyası!",
+      "no_saved_templates": "Henüz kayıtlı şablon bulunmuyor."
     }
   },
   EN: {
@@ -358,6 +371,19 @@ const resources = {
       "export_stand_btn": "⬇ Photo Stand STL",
       "export_combined_btn": "⬇ Case + Stand Combined (STL)",
       "export_colored_btn": "🎨 Download Full Color Model (OBJ + MTL Zip)",
+      "templates_title": "💾 TEMPLATES & SHARING",
+      "save_template": "Save Current Settings as Template",
+      "save_btn": "Save",
+      "template_name_placeholder": "Enter template name...",
+      "my_saved_templates": "My Saved Templates",
+      "export_template_btn": "Share / Export JSON",
+      "import_template_btn": "Import Template File (.json)",
+      "delete_template": "Delete",
+      "load_template": "Load",
+      "template_saved_success": "Template saved successfully!",
+      "template_imported_success": "Template imported and applied successfully!",
+      "template_invalid_format": "Invalid template file format!",
+      "no_saved_templates": "No saved templates yet."
     }
   },
 };

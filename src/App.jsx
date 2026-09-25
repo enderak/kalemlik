@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import CastlePencilCase from './components/organisms/CastlePencilCase';
 import NamePencilCase from './components/organisms/NamePencilCase';
@@ -144,6 +144,268 @@ const App = () => {
   const [photoCrenellationHeight, setPhotoCrenellationHeight] = useState(6); // Mazgal yüksekliği (mm)
   const [photoCrenellationAlignment, setPhotoCrenellationAlignment] = useState('center'); // 'center' | 'front' | 'back'
   const [photoOffset, setPhotoOffset] = useState(0); // mm - yandayken ön/arka, öndeyken sağ/sol kaydırma
+
+  // Custom templates states & handlers
+  const [customTemplates, setCustomTemplates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kalemlik_custom_templates');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [templateNameInput, setTemplateNameInput] = useState('');
+  const fileInputRef = useRef(null);
+
+  const getCurrentConfig = () => {
+    return {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      mode,
+      // Castle parameters
+      shape,
+      outerDiameter,
+      outerSize,
+      height,
+      wallThickness,
+      bottomThickness,
+      baseHeight,
+      baseExtension,
+      numCrenellations,
+      crenellationHeight,
+      crenellationWidth,
+      hasDoor,
+      doorWidth,
+      doorHeight,
+      doorRecess,
+      hasWindows,
+      numWindows,
+      windowWidth,
+      windowHeight,
+      windowRecess,
+      windowArched,
+      hasTowers,
+      towerRadius,
+      towerHeight,
+      cornerRadius,
+      topExtension,
+      corniceHeight,
+      castleText,
+      castleFont,
+      castleTextHeight,
+      castleTextDepth,
+      castleTextMode,
+      castleTextPosition,
+      castleTextElevation,
+      castleTextAngle,
+      castleTextSpacing,
+      castleTextWidthScale,
+      castleTextRepeat,
+      showBrickTexture,
+      embossedBricks,
+      brickDepth,
+      showCastleRelief,
+      castleReliefDepth,
+      materialColor,
+      doorColor,
+      reliefMode,
+      reliefScale,
+      castleReliefElevation,
+      castleReliefAngle,
+      reliefFlipX,
+      reliefSource,
+      customSvgText,
+      customSvgName,
+      // Name mode parameters
+      text,
+      fontName,
+      textArcAngle,
+      numVerticalBars,
+      hasCentralColumn,
+      centralColumnDiameter,
+      dividerMode,
+      numDividers,
+      autoRepeat,
+      dotConnection,
+      // Photo stand parameters
+      hasPhotoStand,
+      photoStandPosition,
+      photoWidth,
+      photoHeight,
+      standFrameThickness,
+      standFrameDepth,
+      photoSlotDepth,
+      photoOnlyEdges,
+      photoHasTopEdge,
+      photoBackThickness,
+      photoDistance,
+      photoTilt,
+      photoHasCrenellations,
+      photoNumCrenellations,
+      photoCrenellationHeight,
+      photoCrenellationAlignment,
+      photoOffset,
+    };
+  };
+
+  const applyConfig = (cfg) => {
+    if (!cfg || typeof cfg !== 'object') return;
+    if (cfg.mode !== undefined) setMode(cfg.mode);
+
+    // Castle parameters
+    if (cfg.shape !== undefined) setShape(cfg.shape);
+    if (cfg.outerDiameter !== undefined) setOuterDiameter(cfg.outerDiameter);
+    if (cfg.outerSize !== undefined) setOuterSize(cfg.outerSize);
+    if (cfg.height !== undefined) setHeight(cfg.height);
+    if (cfg.wallThickness !== undefined) setWallThickness(cfg.wallThickness);
+    if (cfg.bottomThickness !== undefined) setBottomThickness(cfg.bottomThickness);
+    if (cfg.baseHeight !== undefined) setBaseHeight(cfg.baseHeight);
+    if (cfg.baseExtension !== undefined) setBaseExtension(cfg.baseExtension);
+    if (cfg.numCrenellations !== undefined) setNumCrenellations(cfg.numCrenellations);
+    if (cfg.crenellationHeight !== undefined) setCrenellationHeight(cfg.crenellationHeight);
+    if (cfg.crenellationWidth !== undefined) setCrenellationWidth(cfg.crenellationWidth);
+    if (cfg.hasDoor !== undefined) setHasDoor(cfg.hasDoor);
+    if (cfg.doorWidth !== undefined) setDoorWidth(cfg.doorWidth);
+    if (cfg.doorHeight !== undefined) setDoorHeight(cfg.doorHeight);
+    if (cfg.doorRecess !== undefined) setDoorRecess(cfg.doorRecess);
+    if (cfg.hasWindows !== undefined) setHasWindows(cfg.hasWindows);
+    if (cfg.numWindows !== undefined) setNumWindows(cfg.numWindows);
+    if (cfg.windowWidth !== undefined) setWindowWidth(cfg.windowWidth);
+    if (cfg.windowHeight !== undefined) setWindowHeight(cfg.windowHeight);
+    if (cfg.windowRecess !== undefined) setWindowRecess(cfg.windowRecess);
+    if (cfg.windowArched !== undefined) setWindowArched(cfg.windowArched);
+    if (cfg.hasTowers !== undefined) setHasTowers(cfg.hasTowers);
+    if (cfg.towerRadius !== undefined) setTowerRadius(cfg.towerRadius);
+    if (cfg.towerHeight !== undefined) setTowerHeight(cfg.towerHeight);
+    if (cfg.cornerRadius !== undefined) setCornerRadius(cfg.cornerRadius);
+    if (cfg.topExtension !== undefined) setTopExtension(cfg.topExtension);
+    if (cfg.corniceHeight !== undefined) setCorniceHeight(cfg.corniceHeight);
+    if (cfg.castleText !== undefined) setCastleText(cfg.castleText);
+    if (cfg.castleFont !== undefined) setCastleFont(cfg.castleFont);
+    if (cfg.castleTextHeight !== undefined) setCastleTextHeight(cfg.castleTextHeight);
+    if (cfg.castleTextDepth !== undefined) setCastleTextDepth(cfg.castleTextDepth);
+    if (cfg.castleTextMode !== undefined) setCastleTextMode(cfg.castleTextMode);
+    if (cfg.castleTextPosition !== undefined) setCastleTextPosition(cfg.castleTextPosition);
+    if (cfg.castleTextElevation !== undefined) setCastleTextElevation(cfg.castleTextElevation);
+    if (cfg.castleTextAngle !== undefined) setCastleTextAngle(cfg.castleTextAngle);
+    if (cfg.castleTextSpacing !== undefined) setCastleTextSpacing(cfg.castleTextSpacing);
+    if (cfg.castleTextWidthScale !== undefined) setCastleTextWidthScale(cfg.castleTextWidthScale);
+    if (cfg.castleTextRepeat !== undefined) setCastleTextRepeat(cfg.castleTextRepeat);
+    if (cfg.showBrickTexture !== undefined) setShowBrickTexture(cfg.showBrickTexture);
+    if (cfg.embossedBricks !== undefined) setEmbossedBricks(cfg.embossedBricks);
+    if (cfg.brickDepth !== undefined) setBrickDepth(cfg.brickDepth);
+    if (cfg.showCastleRelief !== undefined) setShowCastleRelief(cfg.showCastleRelief);
+    if (cfg.castleReliefDepth !== undefined) setCastleReliefDepth(cfg.castleReliefDepth);
+    if (cfg.materialColor !== undefined) setMaterialColor(cfg.materialColor);
+    if (cfg.doorColor !== undefined) setDoorColor(cfg.doorColor);
+    if (cfg.reliefMode !== undefined) setReliefMode(cfg.reliefMode);
+    if (cfg.reliefScale !== undefined) setReliefScale(cfg.reliefScale);
+    if (cfg.castleReliefElevation !== undefined) setCastleReliefElevation(cfg.castleReliefElevation);
+    if (cfg.castleReliefAngle !== undefined) setCastleReliefAngle(cfg.castleReliefAngle);
+    if (cfg.reliefFlipX !== undefined) setReliefFlipX(cfg.reliefFlipX);
+    if (cfg.reliefSource !== undefined) setReliefSource(cfg.reliefSource);
+    if (cfg.customSvgText !== undefined) setCustomSvgText(cfg.customSvgText);
+    if (cfg.customSvgName !== undefined) setCustomSvgName(cfg.customSvgName);
+
+    // Name parameters
+    if (cfg.text !== undefined) setText(cfg.text);
+    if (cfg.fontName !== undefined) setFontName(cfg.fontName);
+    if (cfg.textArcAngle !== undefined) setTextArcAngle(cfg.textArcAngle);
+    if (cfg.numVerticalBars !== undefined) setNumVerticalBars(cfg.numVerticalBars);
+    if (cfg.hasCentralColumn !== undefined) setHasCentralColumn(cfg.hasCentralColumn);
+    if (cfg.centralColumnDiameter !== undefined) setCentralColumnDiameter(cfg.centralColumnDiameter);
+    if (cfg.dividerMode !== undefined) setDividerMode(cfg.dividerMode);
+    if (cfg.numDividers !== undefined) setNumDividers(cfg.numDividers);
+    if (cfg.autoRepeat !== undefined) setAutoRepeat(cfg.autoRepeat);
+    if (cfg.dotConnection !== undefined) setDotConnection(cfg.dotConnection);
+
+    // Photo stand parameters
+    if (cfg.hasPhotoStand !== undefined) setHasPhotoStand(cfg.hasPhotoStand);
+    if (cfg.photoStandPosition !== undefined) setPhotoStandPosition(cfg.photoStandPosition);
+    if (cfg.photoWidth !== undefined) setPhotoWidth(cfg.photoWidth);
+    if (cfg.photoHeight !== undefined) setPhotoHeight(cfg.photoHeight);
+    if (cfg.standFrameThickness !== undefined) setStandFrameThickness(cfg.standFrameThickness);
+    if (cfg.standFrameDepth !== undefined) setStandFrameDepth(cfg.standFrameDepth);
+    if (cfg.photoSlotDepth !== undefined) setPhotoSlotDepth(cfg.photoSlotDepth);
+    if (cfg.photoOnlyEdges !== undefined) setPhotoOnlyEdges(cfg.photoOnlyEdges);
+    if (cfg.photoHasTopEdge !== undefined) setPhotoHasTopEdge(cfg.photoHasTopEdge);
+    if (cfg.photoBackThickness !== undefined) setPhotoBackThickness(cfg.photoBackThickness);
+    if (cfg.photoDistance !== undefined) setPhotoDistance(cfg.photoDistance);
+    if (cfg.photoTilt !== undefined) setPhotoTilt(cfg.photoTilt);
+    if (cfg.photoHasCrenellations !== undefined) setPhotoHasCrenellations(cfg.photoHasCrenellations);
+    if (cfg.photoNumCrenellations !== undefined) setPhotoNumCrenellations(cfg.photoNumCrenellations);
+    if (cfg.photoCrenellationHeight !== undefined) setPhotoCrenellationHeight(cfg.photoCrenellationHeight);
+    if (cfg.photoCrenellationAlignment !== undefined) setPhotoCrenellationAlignment(cfg.photoCrenellationAlignment);
+    if (cfg.photoOffset !== undefined) setPhotoOffset(cfg.photoOffset);
+  };
+
+  const handleSaveTemplate = () => {
+    const name = templateNameInput.trim() || `Şablon ${customTemplates.length + 1}`;
+    const newTemplate = {
+      id: Date.now().toString(),
+      name,
+      config: getCurrentConfig()
+    };
+    const updated = [newTemplate, ...customTemplates];
+    setCustomTemplates(updated);
+    try {
+      localStorage.setItem('kalemlik_custom_templates', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    setTemplateNameInput('');
+  };
+
+  const handleDeleteTemplate = (id) => {
+    const updated = customTemplates.filter(t => t.id !== id);
+    setCustomTemplates(updated);
+    try {
+      localStorage.setItem('kalemlik_custom_templates', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleExportTemplate = (template) => {
+    const configToExport = template ? template.config : getCurrentConfig();
+    const exportName = (template ? template.name : 'kalemlik-sablon').replace(/[^a-zA-Z0-9_\-ğüşıöçĞÜŞİÖÇ]/g, '_');
+    const jsonStr = JSON.stringify(configToExport, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    downloadBlob(blob, `${exportName}.json`);
+  };
+
+  const handleImportTemplate = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result;
+        if (typeof text === 'string') {
+          const parsed = JSON.parse(text);
+          applyConfig(parsed);
+          const templateName = file.name.replace(/\.[^/.]+$/, '');
+          const newTemplate = {
+            id: Date.now().toString(),
+            name: templateName,
+            config: parsed
+          };
+          const updated = [newTemplate, ...customTemplates.filter(t => t.name !== templateName)];
+          setCustomTemplates(updated);
+          try {
+            localStorage.setItem('kalemlik_custom_templates', JSON.stringify(updated));
+          } catch (err) {
+            console.error(err);
+          }
+          alert(t('template_imported_success'));
+        }
+      } catch (err) {
+        alert(t('template_invalid_format'));
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   const applyPresetChessRook = () => {
     setShape('cylinder');
@@ -391,23 +653,51 @@ const App = () => {
     i18n.changeLanguage(i18n.language === 'TR' ? 'EN' : 'TR');
   };
 
-  const Slider = ({ label, value, onChange, min, max, step = 1 }) => (
-    <div className="mb-3">
-      <div className="flex justify-between text-xs text-slate-400 mb-1">
-        <span>{label}</span>
-        <span className="text-amber-400 font-bold">{value}</span>
+  const Slider = ({ label, value, onChange, min, max, step = 1 }) => {
+    const [localVal, setLocalVal] = useState(value);
+
+    useEffect(() => {
+      setLocalVal(value);
+    }, [value]);
+
+    return (
+      <div className="mb-3">
+        <div className="flex justify-between items-center text-xs text-slate-400 mb-1 gap-2">
+          <span className="truncate pr-1">{label}</span>
+          <input
+            type="number"
+            min={min}
+            max={max}
+            step={step}
+            value={localVal}
+            onChange={(e) => {
+              setLocalVal(e.target.value);
+              const val = parseFloat(e.target.value);
+              if (!isNaN(val)) onChange(val);
+            }}
+            onBlur={() => {
+              const val = parseFloat(localVal);
+              if (isNaN(val)) {
+                setLocalVal(value);
+              } else {
+                setLocalVal(val);
+              }
+            }}
+            className="w-16 px-1.5 py-0.5 text-right font-bold text-amber-400 bg-slate-800/90 border border-slate-700/80 rounded focus:border-amber-500 focus:outline-none text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value))}
+          className="w-full h-1.5 bg-slate-700 rounded-full appearance-none cursor-pointer accent-amber-500"
+        />
       </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full h-1.5 bg-slate-700 rounded-full appearance-none cursor-pointer accent-amber-500"
-      />
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen w-full bg-[#0f172a] flex flex-col font-sans text-white pb-24 md:pb-0">
@@ -452,6 +742,104 @@ const App = () => {
                 {t('mode_name')}
               </button>
             </div>
+          </div>
+
+          {/* TEMPLATES & SHARING */}
+          <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800 space-y-3">
+            <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase flex items-center justify-between">
+              <span>{t('templates_title')}</span>
+              <span className="text-[10px] text-amber-500 font-normal">JSON</span>
+            </h2>
+
+            {/* Save current config */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={templateNameInput}
+                onChange={(e) => setTemplateNameInput(e.target.value)}
+                placeholder={t('template_name_placeholder')}
+                className="flex-1 min-w-0 bg-slate-800 text-xs text-white px-2.5 py-1.5 rounded-lg border border-slate-700 focus:border-amber-500 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={handleSaveTemplate}
+                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors shrink-0 shadow"
+              >
+                {t('save_btn')}
+              </button>
+            </div>
+
+            {/* Quick Export / Import Buttons */}
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => handleExportTemplate(null)}
+                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 font-medium rounded-lg text-[11px] transition-all border border-amber-500/20 flex items-center justify-center gap-1"
+                title="Mevcut ayarları .json dosyası olarak indir"
+              >
+                📤 {t('export_template_btn')}
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-medium rounded-lg text-[11px] transition-all border border-emerald-500/20 flex items-center justify-center gap-1"
+                title="Bilgisayarınızdan bir .json şablon dosyası seçin"
+              >
+                📥 {t('import_template_btn')}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                onChange={handleImportTemplate}
+                className="hidden"
+              />
+            </div>
+
+            {/* Saved Templates List */}
+            {customTemplates.length > 0 && (
+              <div className="space-y-1.5 pt-2 border-t border-slate-800/80 max-h-48 overflow-y-auto pr-1">
+                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                  {t('my_saved_templates')} ({customTemplates.length})
+                </span>
+                {customTemplates.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 rounded-lg p-2 text-xs transition-colors"
+                  >
+                    <span className="truncate font-medium text-slate-200 pr-2 max-w-[100px]" title={item.name}>
+                      {item.name}
+                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => applyConfig(item.config)}
+                        className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[10px] font-semibold transition-colors"
+                        title={t('load_template')}
+                      >
+                        {t('load_template')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExportTemplate(item)}
+                        className="p-1 hover:bg-slate-700 text-slate-400 hover:text-amber-400 rounded transition-colors"
+                        title="JSON İndir / Paylaş"
+                      >
+                        💾
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTemplate(item.id)}
+                        className="p-1 hover:bg-red-900/30 text-slate-400 hover:text-red-400 rounded transition-colors"
+                        title={t('delete_template')}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* ==================================== */}
@@ -1538,7 +1926,7 @@ const App = () => {
                   max={15}
                   step={0.5}
                 />
-                <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={0} max={60} step={1} />
+                <Slider label={t('photo_distance')} value={photoDistance} onChange={setPhotoDistance} min={-50} max={60} step={0.5} />
                 <Slider
                   label={photoStandPosition === 'front' ? t('photo_offset_front') : t('photo_offset_side')}
                   value={photoOffset}
