@@ -730,6 +730,7 @@ const CastlePencilCase = ({
   reliefScale = 1.0,
   castleReliefElevation = 70,
   castleReliefAngle = 0,
+  castleReliefOffset = 0,
   reliefFlipX = false,
   topExtension = 6,
   corniceHeight = 12,
@@ -1395,13 +1396,14 @@ const CastlePencilCase = ({
 
     if (isCylinder) {
       const r = outerDiameter / 2;
-      const targetR = reliefGeomData.mode === 'emboss' ? r + 0.05 : r;
+      const targetR = (reliefGeomData.mode === 'emboss' ? r + 0.05 : r) + castleReliefOffset;
       posX = Math.sin(rad) * targetR;
       posZ = Math.cos(rad) * targetR;
       rotY = rad;
     } else {
       const s = outerSize / 2;
-      const offset = reliefGeomData.mode === 'emboss' ? 0.05 : 0;
+      const baseOffset = reliefGeomData.mode === 'emboss' ? 0.05 : 0;
+      const offset = baseOffset + castleReliefOffset;
       const sinA = Math.sin(rad);
       const cosA = Math.cos(rad);
 
@@ -1435,7 +1437,7 @@ const CastlePencilCase = ({
     if (reliefGeomData.mode === 'emboss') {
       return (
         <group
-          key={`relief-emboss-${showBrickTexture}-${reliefSource}-${reliefFlipX}`}
+          key={`relief-emboss-${showBrickTexture}-${reliefSource}-${reliefFlipX}-${castleReliefOffset}`}
           position={[posX, posY, posZ]}
           rotation={[0, rotY, 0]}
         >
@@ -1448,7 +1450,7 @@ const CastlePencilCase = ({
       // True Physical Engraving: Carved pocket directly recessed into the wall surface
       return (
         <group
-          key={`relief-engrave-${showBrickTexture}-${reliefSource}-${reliefFlipX}`}
+          key={`relief-engrave-${showBrickTexture}-${reliefSource}-${reliefFlipX}-${castleReliefOffset}`}
           position={[posX, posY, posZ]}
           rotation={[0, rotY, 0]}
         >
@@ -1479,6 +1481,7 @@ const CastlePencilCase = ({
     reliefFlipX,
     castleReliefElevation,
     castleReliefAngle,
+    castleReliefOffset,
     topExtension,
     corniceHeight,
   ]);

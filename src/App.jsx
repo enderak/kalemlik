@@ -93,6 +93,7 @@ const App = () => {
   const [reliefScale, setReliefScale] = useState(1.0);
   const [castleReliefElevation, setCastleReliefElevation] = useState(70);
   const [castleReliefAngle, setCastleReliefAngle] = useState(0); // 0: Ön, 90: Sağ, 180: Arka, 270: Sol
+  const [castleReliefOffset, setCastleReliefOffset] = useState(0); // mm (-25 ile +20 mm arası duvara/desene gömülme)
   const [reliefFlipX, setReliefFlipX] = useState(false); // false: sola bakış, true: sağa bakış
   const [reliefSource, setReliefSource] = useState('preset_horse'); // 'preset_horse' | 'custom_svg'
   const [customSvgText, setCustomSvgText] = useState('');
@@ -212,6 +213,7 @@ const App = () => {
       reliefScale,
       castleReliefElevation,
       castleReliefAngle,
+      castleReliefOffset,
       reliefFlipX,
       reliefSource,
       customSvgText,
@@ -302,6 +304,7 @@ const App = () => {
     if (cfg.reliefScale !== undefined) setReliefScale(cfg.reliefScale);
     if (cfg.castleReliefElevation !== undefined) setCastleReliefElevation(cfg.castleReliefElevation);
     if (cfg.castleReliefAngle !== undefined) setCastleReliefAngle(cfg.castleReliefAngle);
+    if (cfg.castleReliefOffset !== undefined) setCastleReliefOffset(cfg.castleReliefOffset);
     if (cfg.reliefFlipX !== undefined) setReliefFlipX(cfg.reliefFlipX);
     if (cfg.reliefSource !== undefined) setReliefSource(cfg.reliefSource);
     if (cfg.customSvgText !== undefined) setCustomSvgText(cfg.customSvgText);
@@ -430,6 +433,7 @@ const App = () => {
     setReliefScale(1.2);
     setCastleReliefElevation(75);
     setCastleReliefAngle(0);
+    setCastleReliefOffset(0);
     setReliefFlipX(false);
     setMaterialColor('#262626');
   };
@@ -1192,7 +1196,65 @@ const App = () => {
                       </div>
                     </div>
 
-                    <Slider label={t('relief_depth')} value={castleReliefDepth} onChange={setCastleReliefDepth} min={0.3} max={4} step={0.1} />
+                    <Slider label={t('relief_depth')} value={castleReliefDepth} onChange={setCastleReliefDepth} min={0.3} max={15} step={0.1} />
+
+                    {/* RÖLYEF DUVAR / DESEN MESAFESİ (GÖMÜLME) */}
+                    <div>
+                      <Slider
+                        label={t('relief_offset')}
+                        value={castleReliefOffset}
+                        onChange={setCastleReliefOffset}
+                        min={-25}
+                        max={20}
+                        step={0.5}
+                      />
+                      <div className="grid grid-cols-4 gap-1 mb-3">
+                        <button
+                          type="button"
+                          onClick={() => setCastleReliefOffset(0)}
+                          className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                            castleReliefOffset === 0
+                              ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_offset_flush')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCastleReliefOffset(-1.5)}
+                          className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                            castleReliefOffset === -1.5
+                              ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_offset_embed_slight')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCastleReliefOffset(-3)}
+                          className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                            castleReliefOffset === -3
+                              ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_offset_embed_deep')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCastleReliefOffset(1)}
+                          className={`py-1 rounded text-[10px] font-medium border transition-colors ${
+                            castleReliefOffset === 1
+                              ? 'bg-amber-600/30 text-amber-300 border-amber-500/50'
+                              : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700'
+                          }`}
+                        >
+                          {t('relief_offset_protrude')}
+                        </button>
+                      </div>
+                    </div>
                     <Slider
                       label={`${t('relief_scale')} (${Math.round(Math.min(height * 0.35, 60) * reliefScale)} mm)`}
                       value={reliefScale}
@@ -2169,6 +2231,7 @@ const App = () => {
                   reliefScale={reliefScale}
                   castleReliefElevation={castleReliefElevation}
                   castleReliefAngle={castleReliefAngle}
+                  castleReliefOffset={castleReliefOffset}
                   reliefFlipX={reliefFlipX}
                   materialColor={materialColor}
                   doorColor={doorColor}
