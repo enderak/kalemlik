@@ -29,3 +29,11 @@ server/node_modules/
 *.njsproj
 *.sln
 *.sw?
+
+# Local backups & scratch
+backups/
+*.backup.*
+*.bat
+test_*.mjs
+test_*.js
+
