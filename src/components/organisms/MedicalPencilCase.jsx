@@ -33,7 +33,7 @@ export const MEDICAL_ROLES = {
     buttonColor: '#334155',    // Koyu şık düğmeler
     textColor: '#1E293B',      // Okunaklı lacivert/siyah yazı
     defaultFrontText: 'TIBBİ SEKRETER',
-    defaultBackText: 'SYDH\nTIBBİ\nSEKRETER',
+    defaultBackText: 'TIBBİ\nSEKRETER',
     hasStethoscope: false,
   },
   doctor: {
@@ -46,7 +46,7 @@ export const MEDICAL_ROLES = {
     buttonColor: '#0F172A',
     textColor: '#0F172A',
     defaultFrontText: 'UZM. DR.',
-    defaultBackText: 'SYDH\nDOKTOR',
+    defaultBackText: 'DOKTOR',
     hasStethoscope: true,
   },
   nurse: {
@@ -59,7 +59,7 @@ export const MEDICAL_ROLES = {
     buttonColor: '#FFFFFF',
     textColor: '#FFFFFF',
     defaultFrontText: 'HEMŞİRE',
-    defaultBackText: 'SYDH\nHEMŞİRE',
+    defaultBackText: 'HEMŞİRE',
     hasStethoscope: false,
   },
 };
@@ -90,8 +90,8 @@ const MedicalPencilCase = ({
   stethoscopeColor = '#0F172A',
   baseColor = '#1E293B',
 
-  // Sırt Yazısı (Hastane Adı - 3 Satır: SYDH / TIBBİ / SEKRETER)
-  backText = 'SYDH\nTIBBİ\nSEKRETER',
+  // Sırt Yazısı (Satır satır: TIBBİ / SEKRETER)
+  backText = 'TIBBİ\nSEKRETER',
   backTextStyle = 'plate', // 'plate' | 'engrave' | 'emboss'
   backTextHeight = 7.0,
   backTextDepth = 1.0,

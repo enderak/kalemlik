@@ -650,7 +650,7 @@ const App = () => {
     }
     return '#1E293B';
   });
-  const [medicalBackText, setMedicalBackText] = useState('SYDH\nTIBBİ\nSEKRETER');
+  const [medicalBackText, setMedicalBackText] = useState('TIBBİ\nSEKRETER');
   const [medicalBackTextStyle, setMedicalBackTextStyle] = useState(() => {
     if (typeof window !== 'undefined') {
       const sp = new URLSearchParams(window.location.search);
@@ -1430,13 +1430,13 @@ SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
 
                 <div>
                   <label className="block text-xs text-slate-400 mb-1">
-                    Sırt Yazısı (Satır satır - Örn: SYDH / TIBBİ / SEKRETER):
+                    Sırt Yazısı (Satır satır - Örn: TIBBİ / SEKRETER):
                   </label>
                   <textarea
                     rows={3}
                     value={medicalBackText}
                     onChange={(e) => setMedicalBackText(e.target.value)}
-                    placeholder="SYDH&#10;TIBBİ&#10;SEKRETER"
+                    placeholder="TIBBİ&#10;SEKRETER"
                     className="w-full px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-amber-400 focus:outline-none focus:border-amber-500 leading-tight"
                   />
                 </div>
