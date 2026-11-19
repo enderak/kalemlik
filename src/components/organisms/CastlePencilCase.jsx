@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 import { SVGLoader } from 'three/examples/jsm/loaders/SVGLoader';
+import { ensureTurkishFontGlyphs } from '../../utils/fontUtils';
 
 const SEG = 48;
 
@@ -754,7 +755,11 @@ const CastlePencilCase = ({
 
   // Font loading for castle text
   const fontPath = `/fonts/${castleFont}`;
-  const font = useLoader(FontLoader, fontPath);
+  const rawFont = useLoader(FontLoader, fontPath);
+  const font = useMemo(() => {
+    if (!rawFont) return null;
+    return ensureTurkishFontGlyphs(rawFont);
+  }, [rawFont]);
 
   // Generate castle text geometries (Emboss & Engrave on Cylinder & Square)
   const castleTextMeshes = useMemo(() => {

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import * as THREE from 'three';
 import { useLoader } from '@react-three/fiber';
 import { FontLoader } from 'three/examples/jsm/loaders/FontLoader';
+import { ensureTurkishFontGlyphs } from '../../utils/fontUtils';
 
 const SEG = 48;
 
@@ -140,8 +141,12 @@ const NamePencilCase = ({
   const letterHeight = height - baseHeight - topRingHeight;
   const fontPath = `/fonts/${fontName}`;
 
-  // Load font synchronously using suspense
-  const font = useLoader(FontLoader, fontPath);
+  // Load font synchronously using suspense and ensure Turkish characters
+  const rawFont = useLoader(FontLoader, fontPath);
+  const font = useMemo(() => {
+    if (!rawFont) return null;
+    return ensureTurkishFontGlyphs(rawFont);
+  }, [rawFont]);
 
   // 1. Base Plate Geometry
   const baseGeom = useMemo(() => {
