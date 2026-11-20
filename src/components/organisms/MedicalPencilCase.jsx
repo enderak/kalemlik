@@ -35,6 +35,7 @@ export const MEDICAL_ROLES = {
     defaultFrontText: 'TIBBİ SEKRETER',
     defaultBackText: 'TIBBİ\nSEKRETER',
     hasStethoscope: false,
+    hasButtons: true,
   },
   doctor: {
     id: 'doctor',
@@ -48,6 +49,7 @@ export const MEDICAL_ROLES = {
     defaultFrontText: 'UZM. DR.',
     defaultBackText: 'DOKTOR',
     hasStethoscope: true,
+    hasButtons: true,
   },
   nurse: {
     id: 'nurse',
@@ -61,6 +63,7 @@ export const MEDICAL_ROLES = {
     defaultFrontText: 'HEMŞİRE',
     defaultBackText: 'HEMŞİRE',
     hasStethoscope: false,
+    hasButtons: true,
   },
 };
 
@@ -86,6 +89,7 @@ const MedicalPencilCase = ({
   collarColor = '#FFFFFF',
   innerShirtColor = '#E2E8F0',
   buttonColor = '#334155',
+  hasButtons = true,
   textColor = '#0F172A',
   stethoscopeColor = '#0F172A',
   baseColor = '#1E293B',
@@ -136,13 +140,14 @@ const MedicalPencilCase = ({
       coatWidth: Math.max(60, Number(coatWidth) || 82),
       coatDepth: Math.max(40, Number(coatDepth) || 50),
       collarOpeningWidth: Math.max(16, Number(collarOpeningWidth) || 28),
+      hasButtons: Boolean(hasButtons),
       coatBottomY,
       coatTopY,
       coatSpan,
       totalH,
       baseH: totalBaseH,
     };
-  }, [height, totalBaseH, coatWidth, coatDepth, collarOpeningWidth]);
+  }, [height, totalBaseH, coatWidth, coatDepth, collarOpeningWidth, hasButtons]);
 
   // Helper for elevation mapping
   const mapCoatY = (sliderY) => {
@@ -229,8 +234,9 @@ const MedicalPencilCase = ({
 
   // 4. Center Front Buttons (4 adet dikişli önlük düğmesi)
   const buttonGeoms = useMemo(() => {
+    if (!hasButtons) return [];
     return buildCoatButtonsGeometry(layout);
-  }, [layout]);
+  }, [hasButtons, layout]);
 
   // 5. Pockets (Chest pocket + Two lower pockets)
   const pocketItems = useMemo(() => {
@@ -521,7 +527,7 @@ const MedicalPencilCase = ({
       ))}
 
       {/* ── Ön Düğmeler (4 Adet Dikey Dikişli Düğme) ── */}
-      {buttonGeoms.map((bg, idx) => (
+      {hasButtons && buttonGeoms.map((bg, idx) => (
         <mesh
           key={idx}
           name={`Onluk_Dugme_${idx + 1}`}

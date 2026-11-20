@@ -217,7 +217,7 @@ export function evalCoatOuterPoint(v, theta, layout, wallThickness = 2.2) {
   if (isFront) {
     const placketFade =
       smoothstep(0.01, 0.05, vEff) * (1.0 - smoothstep(0.52, 0.58, vEff));
-    if (placketFade > 0.001 && Math.abs(x) < 10) {
+    if (layout?.hasButtons !== false && placketFade > 0.001 && Math.abs(x) < 10) {
       const overlap =
         0.55 * smoothstep(-2.4, -1.0, x) * Math.exp(-Math.pow(x / 7.5, 2));
       z += overlap * placketFade;
@@ -396,7 +396,7 @@ export function getExactCoatSurfaceZ(worldX, worldY, isFront, layout) {
   if (isFront) {
     const placketFade =
       smoothstep(0.01, 0.05, vEff) * (1.0 - smoothstep(0.52, 0.58, vEff));
-    if (placketFade > 0.001 && Math.abs(worldX) < 10) {
+    if (layout?.hasButtons !== false && placketFade > 0.001 && Math.abs(worldX) < 10) {
       z +=
         0.55 *
         smoothstep(-2.4, -1.0, worldX) *

@@ -207,8 +207,8 @@ const App = () => {
       text, fontName, textArcAngle, numVerticalBars, hasCentralColumn, centralColumnDiameter, dividerMode, numDividers, autoRepeat, dotConnection,
       hasPhotoStand, photoStandPosition, photoWidth, photoHeight, standFrameThickness, standFrameDepth, photoSlotDepth, photoOnlyEdges, photoHasTopEdge, photoBackThickness, photoDistance, photoTilt, photoHasCrenellations, photoNumCrenellations, photoCrenellationHeight, photoCrenellationAlignment, photoOffset,
       hasNoteHolder, notePosition, noteSide, noteWidth, noteDepth, noteHeight, noteWallThickness, noteDistance, noteOffset, hasThumbCutout, thumbCutoutWidth, thumbCutoutDepth, noteColor, showSamplePaper,
-      medicalRole, medicalCoatWidth, medicalCoatDepth, medicalCavityWidth, medicalCavityDepth, medicalHeight, medicalWallThickness, medicalBottomThickness, medicalBaseShape, medicalBaseWidth, medicalBaseDepth, medicalBaseThickness, medicalBaseCornerRadius, medicalBaseColor, medicalCoatColor, medicalCollarColor, medicalInnerShirtColor, medicalButtonColor, medicalTextColor, medicalStethoscopeColor, medicalBackText, medicalBackTextStyle, medicalPlateColor, medicalBackTextHeight, medicalBackTextDepth, medicalBackTextElevation, medicalFrontText, medicalFrontTextHeight, medicalFrontTextDepth, medicalFrontTextElevation, medicalCollarOpeningWidth, medicalFontName,
-      jerseyTeam, jerseyPattern, jerseyPrimaryColor, jerseySecondaryColor, jerseyAccentColor, jerseyTextColor, jerseyTorsoWidth, jerseyTorsoDepth, jerseyHeight, jerseyWallThickness, jerseyBottomThickness, jerseyCornerRadius, hasSponsor, frontText, frontTextHeight, frontTextDepth, frontTextElevation, hasFrontNumber, frontNumber, frontNumberHeight, hasBadge, badgeText, stars, badgeElevation, hasBackName, backName, backNameHeight, backNameDepth, backNameElevation, hasBackNumber, backNumber, backNumberHeight, backNumberDepth, backNumberElevation, hasShorts, shortsColor, jerseyFontName, hasJerseyDivider, jerseyCollarType, hasJerseyTextSupport, jerseySleeveAngle, jerseyTextSupportAngle, jerseyBaseShape, jerseyBaseThickness, jerseyBaseWidth, jerseyBaseDepth, jerseyBaseCornerRadius, jerseyBaseColor
+      medicalRole, medicalCoatWidth, medicalCoatDepth, medicalCavityWidth, medicalCavityDepth, medicalHeight, medicalWallThickness, medicalBottomThickness, medicalBaseShape, medicalBaseWidth, medicalBaseDepth, medicalBaseThickness, medicalBaseCornerRadius, medicalBaseColor, medicalHasButtons, medicalCoatColor, medicalCollarColor, medicalInnerShirtColor, medicalButtonColor, medicalTextColor, medicalStethoscopeColor, medicalBackText, medicalBackTextStyle, medicalPlateColor, medicalBackTextHeight, medicalBackTextDepth, medicalBackTextElevation, medicalFrontText, medicalFrontTextHeight, medicalFrontTextDepth, medicalFrontTextElevation, medicalCollarOpeningWidth, medicalFontName,
+      jerseyTeam, jerseyPattern, jerseyPrimaryColor, jerseySecondaryColor, jerseyAccentColor, jerseyTextColor, jerseyTorsoWidth, jerseyTorsoDepth, jerseyHeight, jerseyWallThickness, jerseyBottomThickness, jerseyCornerRadius, hasSponsor, frontText, frontTextHeight, frontTextDepth, frontTextElevation, hasFrontNumber, frontNumber, frontNumberHeight, hasBadge, badgeText, stars, badgeElevation, hasBackName, backName, backNameHeight, backNameDepth, backNameElevation, hasBackNumber, backNumber, backNumberHeight, backNumberDepth, backNumberElevation, hasShorts, shortsColor, jerseyFontName, hasJerseyDivider, jerseyHasButtons, jerseyButtonColor, jerseyCollarType, hasJerseyTextSupport, jerseySleeveAngle, jerseyTextSupportAngle, jerseyBaseShape, jerseyBaseThickness, jerseyBaseWidth, jerseyBaseDepth, jerseyBaseCornerRadius, jerseyBaseColor
     };
   };
 
@@ -325,6 +325,7 @@ const App = () => {
     if (cfg.medicalBaseThickness !== undefined) setMedicalBaseThickness(cfg.medicalBaseThickness);
     if (cfg.medicalBaseCornerRadius !== undefined) setMedicalBaseCornerRadius(cfg.medicalBaseCornerRadius);
     if (cfg.medicalBaseColor !== undefined) setMedicalBaseColor(cfg.medicalBaseColor);
+    if (cfg.medicalHasButtons !== undefined) setMedicalHasButtons(cfg.medicalHasButtons);
     if (cfg.medicalCoatColor !== undefined) setMedicalCoatColor(cfg.medicalCoatColor);
     if (cfg.medicalCollarColor !== undefined) setMedicalCollarColor(cfg.medicalCollarColor);
     if (cfg.medicalInnerShirtColor !== undefined) setMedicalInnerShirtColor(cfg.medicalInnerShirtColor);
@@ -381,6 +382,8 @@ const App = () => {
     if (cfg.shortsColor !== undefined) setShortsColor(cfg.shortsColor);
     if (cfg.jerseyFontName !== undefined) setJerseyFontName(cfg.jerseyFontName);
     if (cfg.hasJerseyDivider !== undefined) setHasJerseyDivider(cfg.hasJerseyDivider);
+    if (cfg.jerseyHasButtons !== undefined) setJerseyHasButtons(cfg.jerseyHasButtons);
+    if (cfg.jerseyButtonColor !== undefined) setJerseyButtonColor(cfg.jerseyButtonColor);
     if (cfg.jerseyCollarType !== undefined) setJerseyCollarType(cfg.jerseyCollarType);
     if (cfg.hasJerseyTextSupport !== undefined) setHasJerseyTextSupport(cfg.hasJerseyTextSupport);
     if (cfg.jerseySleeveAngle !== undefined) setJerseySleeveAngle(cfg.jerseySleeveAngle);
@@ -561,6 +564,15 @@ const App = () => {
   const [jerseyFontName, setJerseyFontName] = useState('DINMittelschriftStd.json');
   const [hasJerseyDivider, setHasJerseyDivider] = useState(false);
   const [jerseyCollarType, setJerseyCollarType] = useState('crew');
+  const [jerseyHasButtons, setJerseyHasButtons] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const hb = sp.get('jerseyButtons');
+      if (hb === 'true' || hb === '1') return true;
+    }
+    return false;
+  });
+  const [jerseyButtonColor, setJerseyButtonColor] = useState('#FFFFFF');
   const [hasJerseyTextSupport, setHasJerseyTextSupport] = useState(true);
   const [jerseySleeveAngle, setJerseySleeveAngle] = useState(24);
   const [jerseyTextSupportAngle, setJerseyTextSupportAngle] = useState(45);
@@ -604,6 +616,15 @@ const App = () => {
     return (r && r.innerShirtColor) || '#E2E8F0';
   });
   const [medicalButtonColor, setMedicalButtonColor] = useState('#334155');
+  const [medicalHasButtons, setMedicalHasButtons] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const hb = sp.get('hasButtons');
+      if (hb === 'false' || hb === '0') return false;
+      if (hb === 'true' || hb === '1') return true;
+    }
+    return true;
+  });
   const [medicalTextColor, setMedicalTextColor] = useState('#0F172A');
   const [medicalStethoscopeColor, setMedicalStethoscopeColor] = useState('#0F172A');
   const [medicalCoatWidth, setMedicalCoatWidth] = useState(82);
@@ -677,6 +698,7 @@ const App = () => {
     setMedicalCollarColor(r.collarColor);
     setMedicalInnerShirtColor(r.innerShirtColor || '#E2E8F0');
     setMedicalButtonColor(r.buttonColor);
+    if (r.hasButtons !== undefined) setMedicalHasButtons(r.hasButtons);
     setMedicalTextColor(r.textColor);
     setMedicalFrontText(r.defaultFrontText);
     setMedicalBackText(r.defaultBackText);
@@ -1314,6 +1336,26 @@ SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
                 </div>
               </div>
 
+                            {/* ÖN DÜĞMELİ KISIM (DÜĞMELER) */}
+              <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xs font-bold tracking-wider text-slate-300 uppercase">
+                      Ön Düğmeli Kısım
+                    </h2>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      {medicalHasButtons ? 'Düğmeli önlük / forma modeli' : 'Düğmesiz düz / V-yaka forma modeli'}
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={medicalHasButtons}
+                    onChange={(e) => setMedicalHasButtons(e.target.checked)}
+                    className="w-5 h-5 accent-amber-500 rounded cursor-pointer"
+                  />
+                </div>
+              </div>
+
               {/* SIRT HASTANE / KURUM YAZISI */}
               <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800 space-y-3">
                 <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase flex items-center justify-between">
@@ -1560,18 +1602,20 @@ SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
                     </div>
                   </div>
 
-                  <div>
-                    <span className="block text-slate-400 mb-1">Düğme Rengi</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={medicalButtonColor}
-                        onChange={(e) => setMedicalButtonColor(e.target.value)}
-                        className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer"
-                      />
-                      <span className="text-[11px] font-mono text-slate-300">{medicalButtonColor}</span>
+                  {medicalHasButtons && (
+                    <div>
+                      <span className="block text-slate-400 mb-1">Düğme Rengi</span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={medicalButtonColor}
+                          onChange={(e) => setMedicalButtonColor(e.target.value)}
+                          className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer"
+                        />
+                        <span className="text-[11px] font-mono text-slate-300">{medicalButtonColor}</span>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   <div>
                     <span className="block text-slate-400 mb-1">Yazı Rengi</span>
@@ -1817,6 +1861,30 @@ SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
                   max={80}
                   step={1}
                 />
+              </div>
+
+                            {/* ÖN DÜĞMELİ POLO YAKA PATI */}
+              <div className="bg-slate-900/80 rounded-2xl p-5 border border-slate-800 space-y-3">
+                <h2 className="text-xs font-bold tracking-wider text-slate-500 uppercase flex items-center justify-between">
+                  <span>Ön Düğmeli Kısım (Polo Yaka)</span>
+                  <input
+                    type="checkbox"
+                    checked={jerseyHasButtons}
+                    onChange={(e) => setJerseyHasButtons(e.target.checked)}
+                    className="accent-amber-500"
+                  />
+                </h2>
+                {jerseyHasButtons && (
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <span className="text-slate-400">Düğme Rengi</span>
+                    <input
+                      type="color"
+                      value={jerseyButtonColor}
+                      onChange={(e) => setJerseyButtonColor(e.target.value)}
+                      className="w-8 h-8 rounded border border-slate-700 bg-transparent cursor-pointer"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* ŞORT AYARI */}
@@ -3295,6 +3363,7 @@ SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
                   collarColor={medicalCollarColor}
                   innerShirtColor={medicalInnerShirtColor}
                   buttonColor={medicalButtonColor}
+                  hasButtons={medicalHasButtons}
                   textColor={medicalTextColor}
                   stethoscopeColor={medicalStethoscopeColor}
                   backText={medicalBackText}

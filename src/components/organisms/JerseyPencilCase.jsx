@@ -217,6 +217,8 @@ const JerseyPencilCase = ({
   // Font & Stil
   fontName = 'DINMittelschriftStd.json',
   hasDivider = false,
+  hasButtons = false,
+  buttonColor = '#FFFFFF',
 
   groupRef,
 }) => {
@@ -789,6 +791,59 @@ const JerseyPencilCase = ({
       shortsColor.toUpperCase() === '#E5E5E5');
   const shortsDetailColor = isLightShorts ? darkRedColor : '#FFFFFF';
 
+  // 3.5 Optional Front Polo Button Placket
+  const { placketGeom, placketButtonGeoms } = useMemo(() => {
+    if (!hasButtons) return { placketGeom: null, placketButtonGeoms: [] };
+
+    const yTop = layout.jerseyBottomY + layout.jerseySpan * 0.925 - 6.8;
+    const yBot = yTop - 12.5;
+    const pw = 8.5;
+    const rx = pw / 2;
+
+    const placketShape = new THREE.Shape();
+    placketShape.moveTo(-rx, yTop);
+    placketShape.lineTo(rx, yTop);
+    placketShape.lineTo(rx, yBot + 2.0);
+    placketShape.quadraticCurveTo(rx, yBot, 0, yBot);
+    placketShape.quadraticCurveTo(-rx, yBot, -rx, yBot + 2.0);
+    placketShape.closePath();
+
+    const pGeom = new THREE.ExtrudeGeometry(placketShape, {
+      depth: 0.8,
+      bevelEnabled: true,
+      bevelSegments: 2,
+      steps: 1,
+      bevelSize: 0.3,
+      bevelThickness: 0.3,
+    });
+
+    const midY = (yTop + yBot) * 0.5;
+    const surfZ = getExactTorsoSurfaceZ(0, midY, true, layout);
+    pGeom.translate(0, 0, surfZ - 0.2);
+
+    const bGeoms = [];
+    const buttonR = 1.75;
+    const bPts = [
+      new THREE.Vector2(0.0, 0.0),
+      new THREE.Vector2(buttonR * 1.02, 0.0),
+      new THREE.Vector2(buttonR * 1.02, 0.4),
+      new THREE.Vector2(buttonR * 0.88, 0.95),
+      new THREE.Vector2(buttonR * 0.62, 0.95),
+      new THREE.Vector2(buttonR * 0.48, 0.65),
+      new THREE.Vector2(0.0, 0.6),
+    ];
+
+    [yTop - 3.2, yBot + 3.8].forEach((by) => {
+      const bz = getExactTorsoSurfaceZ(0, by, true, layout) + 0.7;
+      const bg = new THREE.LatheGeometry(bPts, 20);
+      bg.rotateX(Math.PI / 2);
+      bg.translate(0, by, bz);
+      bGeoms.push(bg);
+    });
+
+    return { placketGeom: pGeom, placketButtonGeoms: bGeoms };
+  }, [hasButtons, layout]);
+
   return (
     <group ref={groupRef} dispose={null}>
       {/* ── Taban Plakası ── */}
@@ -947,6 +1002,32 @@ const JerseyPencilCase = ({
           roughness={0.34}
         />
       </mesh>
+
+      {/* ── ÖN DÜĞMELİ POLO YAKA PATI VE DÜĞMELER ── */}
+      {hasButtons && placketGeom && (
+        <mesh name="Forma_Yaka_Dugme_Pati" geometry={placketGeom} castShadow receiveShadow>
+          <meshStandardMaterial
+            color={accentColor || secondaryColor || '#FFFFFF'}
+            roughness={0.35}
+            metalness={0.05}
+          />
+        </mesh>
+      )}
+      {hasButtons && placketButtonGeoms.map((bg, idx) => (
+        <mesh
+          key={`jersey-btn-${idx}`}
+          name={`Forma_Dugme_${idx + 1}`}
+          geometry={bg}
+          castShadow
+          receiveShadow
+        >
+          <meshStandardMaterial
+            color={buttonColor}
+            roughness={0.25}
+            metalness={0.15}
+          />
+        </mesh>
+      ))}
 
       {/* ══════════════════════════════════════════════════════ */}
       {/* ── ÖN TARAF: 5 YILDIZLI GALATASARAY ARMASI ── */}
