@@ -1063,201 +1063,31 @@ export function buildCoatButtonsGeometry(layout) {
 export function getChestPocketLayout(layout) {
   const collarW = layout.collarOpeningWidth ?? 28;
   const coatW = layout.coatWidth ?? 82;
-  const coatD = layout.coatDepth ?? 50;
   const botY = layout.coatBottomY;
-  const topY = layout.coatTopY;
   const span = layout.coatSpan;
 
-  const profTop = evalCoatProfile(1.0, coatW, coatD, collarW);
-  const profChest = evalCoatProfile(0.61, coatW, coatD, collarW);
-  const neckOuterHw = profTop.neckOuterHw;
-  const lapelMidHw = lerp(16.0, neckOuterHw, 0.45);
-
-  const vBottomY = botY + span * 0.54;
-  const vTopY = topY - 0.3;
-  const vSpan = vTopY - vBottomY;
-  const peakY = vBottomY + vSpan * 0.45;
-  const peakX = lapelMidHw * 0.82;
-  const x4Abs = Math.min(
-    neckOuterHw - 0.55,
-    lerp(lapelMidHw, neckOuterHw, 0.46) * 0.90
-  );
-
-  // Maximum outer reach of the lapel at/near the chest pocket height
-  const lapelMaxX = Math.max(peakX, x4Abs, neckOuterHw * 0.72);
-
-  const extraCollar = Math.max(0, collarW - 22);
   const widthScale = coatW / 82;
+  const extraCollar = Math.max(0, collarW - 24);
 
-  // Pocket width scales naturally with coat width, slightly slimmer when collar is extra wide
-  const chestW = clamp((13.2 - extraCollar * 0.08) * widthScale, 11.2, 15.0);
+  // Chest pocket dimensions: natural proportions on the chest
+  const chestW = clamp((13.0 - extraCollar * 0.06) * widthScale, 11.5, 14.5);
   const chestH = 14.2;
   const chestY = botY + span * 0.61;
 
-  // Clearance from the lapel outer edge (yaka yaklaştıkça cebi kenara kaydıran dinamik pay)
-  const clearance = 2.8 * widthScale;
-  const minClearChestX = lapelMaxX + clearance + chestW * 0.5;
-  const targetChestX = (15.5 + extraCollar * 0.35) * widthScale + chestW * 0.5;
-
-  const maxSafeChestX = profChest.hw - chestW * 0.5 - 2.5 * widthScale;
-  const chestX = clamp(Math.max(targetChestX, minClearChestX), 14.0, maxSafeChestX);
+  // Base chestX is centered naturally on the breast (16.2mm).
+  // When collar opens/widens, it smoothly shifts aside ("biraz kenara kayar"):
+  const targetChestX = (16.2 + extraCollar * 0.32) * widthScale;
+  const maxSafeChestX = (coatW * 0.5 * 0.88 - chestW * 0.5 - 3.5) * widthScale;
+  const chestX = clamp(targetChestX, 15.0, maxSafeChestX);
 
   return { chestX, chestY, chestW, chestH };
 }
 
 /**
- * Builds a 100% watertight, manifold 3D curved patch pocket that perfectly conforms
- * to the outer garment surface with supportless (<= 40 deg) bottom chamfer,
- * integrated top welt hem band, and zero degenerate/overlapping faces.
- */
-function buildWatertightCurvedPocketGeometry(
-  layout,
-  centerX,
-  centerY,
-  w,
-  h,
-  cornerR = 3.0,
-  depth = 1.35,
-  embed = 0.35,
-  weltH = 2.4,
-  nx = 14,
-  ny = 16
-) {
-  const hw = w * 0.5;
-  const hh = h * 0.5;
-
-  const xs = [];
-  for (let i = 0; i <= nx; i++) xs.push(-hw + (2 * hw) * (i / nx));
-  const ys = [];
-  for (let j = 0; j <= ny; j++) ys.push(-hh + (2 * hh) * (j / ny));
-
-  const mapCorner = (x, y) => {
-    if (y < -hh + cornerR && Math.abs(x) > hw - cornerR) {
-      const signX = x > 0 ? 1.0 : -1.0;
-      const cx = signX * (hw - cornerR);
-      const cy = -hh + cornerR;
-      const dx = x - cx;
-      const dy = y - cy;
-      const dist = Math.hypot(dx, dy);
-      if (dist > cornerR && dist > 1e-6) {
-        return [cx + dx * (cornerR / dist), cy + dy * (cornerR / dist)];
-      }
-    }
-    return [x, y];
-  };
-
-  const grid2D = [];
-  for (let j = 0; j <= ny; j++) {
-    const row = [];
-    for (let i = 0; i <= nx; i++) row.push(mapCorner(xs[i], ys[j]));
-    grid2D.push(row);
-  }
-
-  const positions = [];
-  const indices = [];
-
-  // 1. Front cap vertices
-  const frontIndices = [];
-  for (let j = 0; j <= ny; j++) {
-    const rowIdx = [];
-    for (let i = 0; i <= nx; i++) {
-      const [lx, ly] = grid2D[j][i];
-      const idx = positions.length / 3;
-
-      // Support-free bottom draft (<= 40 deg overhang for clean 3D printing without supports)
-      const bottomDraftT = Math.max(0.0, Math.min(1.0, (-hh + 3.2 - ly) / 3.2));
-
-      // Raised top welt hem band detail (+0.25mm)
-      const weltT = Math.max(0.0, Math.min(1.0, (ly - (hh - weltH)) / 0.8));
-
-      // Subtle side bevel towards boundary
-      const edgeDistX = hw - Math.abs(lx);
-      const sideBevelT = Math.max(0.0, Math.min(1.0, edgeDistX / 0.8));
-
-      const frontZOffset =
-        (depth + weltT * 0.28) * (0.82 + 0.18 * sideBevelT) -
-        bottomDraftT * (depth * 0.70);
-
-      const wx = centerX + lx;
-      const wy = centerY + ly;
-      const surfZ = getExactCoatSurfaceZ(wx, wy, true, layout);
-      const wz = surfZ + frontZOffset;
-
-      positions.push(wx, wy, wz);
-      rowIdx.push(idx);
-    }
-    frontIndices.push(rowIdx);
-  }
-
-  // 1b. Front cap faces (normal pointing outward +Z)
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const v00 = frontIndices[j][i];
-      const v10 = frontIndices[j][i + 1];
-      const v11 = frontIndices[j + 1][i + 1];
-      const v01 = frontIndices[j + 1][i];
-      indices.push(v00, v10, v11);
-      indices.push(v00, v11, v01);
-    }
-  }
-
-  // 2. Back cap vertices (embedded cleanly into the coat body wall)
-  const backIndices = [];
-  for (let j = 0; j <= ny; j++) {
-    const rowIdx = [];
-    for (let i = 0; i <= nx; i++) {
-      const [lx, ly] = grid2D[j][i];
-      const idx = positions.length / 3;
-
-      const wx = centerX + lx;
-      const wy = centerY + ly;
-      const surfZ = getExactCoatSurfaceZ(wx, wy, true, layout);
-      const wz = surfZ - embed;
-
-      positions.push(wx, wy, wz);
-      rowIdx.push(idx);
-    }
-    backIndices.push(rowIdx);
-  }
-
-  // 2b. Back cap faces (normal pointing inward into coat wall)
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const v00 = backIndices[j][i];
-      const v10 = backIndices[j][i + 1];
-      const v11 = backIndices[j + 1][i + 1];
-      const v01 = backIndices[j + 1][i];
-      indices.push(v00, v11, v10);
-      indices.push(v00, v01, v11);
-    }
-  }
-
-  // 3. Side wall quads connecting front boundary to back boundary
-  const boundary = [];
-  for (let i = 0; i < nx; i++) boundary.push([i, 0, i + 1, 0]);
-  for (let j = 0; j < ny; j++) boundary.push([nx, j, nx, j + 1]);
-  for (let i = nx; i > 0; i--) boundary.push([i, ny, i - 1, ny]);
-  for (let j = ny; j > 0; j--) boundary.push([0, j, 0, j - 1]);
-
-  for (const [i1, j1, i2, j2] of boundary) {
-    const f1 = frontIndices[j1][i1];
-    const f2 = frontIndices[j2][i2];
-    const b1 = backIndices[j1][i1];
-    const b2 = backIndices[j2][i2];
-    indices.push(f1, f2, b2);
-    indices.push(f1, b2, b1);
-  }
-
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geom.setIndex(indices);
-  geom.computeVertexNormals();
-  return geom;
-}
-
-/**
  * Builds the Chest Pocket (Left chest: X > 0) and the Two Lower Side Pockets
- * as 100% watertight, manifold 3D solids with integrated welt rims and support-free chamfers.
+ * as 100% watertight, manifold 3D solids that seat perfectly flush into the coat body.
+ * Features smooth beveled edges, integrated support-free (<= 40 deg) bottom chamfers,
+ * and zero duplicate/overlapping meshes to eliminate any slicing blemishes ("lekeler").
  */
 export function buildCoatPocketsGeometry(layout, wallThickness = 2.2) {
   const pockets = [];
@@ -1265,23 +1095,62 @@ export function buildCoatPocketsGeometry(layout, wallThickness = 2.2) {
   const botY = layout.coatBottomY;
   const wScale = (layout.coatWidth ?? 82) / 82;
   const wt = Math.max(0.8, Number(wallThickness) || 2.2);
-  const safeEmbed = Math.min(0.38, wt * 0.25);
+  const embed = Math.min(0.35, wt * 0.20);
+
+  const makePocketShape = (w, h, cornerR) => {
+    const s = new THREE.Shape();
+    const hw = w * 0.5;
+    const hh = h * 0.5;
+    s.moveTo(-hw, hh);
+    s.lineTo(hw, hh);
+    s.lineTo(hw, -hh + cornerR);
+    s.quadraticCurveTo(hw, -hh, hw - cornerR, -hh);
+    s.lineTo(-hw + cornerR, -hh);
+    s.quadraticCurveTo(-hw, -hh, -hw, -hh + cornerR);
+    s.closePath();
+    return s;
+  };
+
+  const projectPocket = (geom, centerX, centerY, hh, safeEmbed = 0.35) => {
+    geom.translate(centerX, centerY, 0);
+    geom.computeBoundingBox();
+    const minZ = geom.boundingBox.min.z;
+    const pos = geom.attributes.position;
+
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const lz = pos.getZ(i);
+
+      const lzRel = lz - minZ;
+      const ly = y - centerY;
+      // Smooth draft at bottom so overhang is <= 40 degrees for support-free 3D printing
+      const u = clamp((hh * 0.15 - ly) / (hh * 0.60), 0, 1);
+      const bottomMask = u * u * (3 - 2 * u);
+      const draftZ = lzRel * 0.45 * bottomMask;
+
+      const surfZ = getExactCoatSurfaceZ(x, y, true, layout);
+      const finalZ = surfZ - safeEmbed + (lzRel - draftZ);
+
+      pos.setZ(i, finalZ);
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+    return geom;
+  };
 
   // 1. Left Chest Pocket (responsive to collarOpeningWidth)
   const { chestX, chestY, chestW, chestH } = getChestPocketLayout(layout);
-  const gChest = buildWatertightCurvedPocketGeometry(
-    layout,
-    chestX,
-    chestY,
-    chestW,
-    chestH,
-    2.8,
-    1.35,
-    safeEmbed,
-    2.4,
-    14,
-    16
-  );
+  const shapeChest = makePocketShape(chestW, chestH, 2.8);
+  let gChest = new THREE.ExtrudeGeometry(shapeChest, {
+    depth: 0.95,
+    bevelEnabled: true,
+    bevelThickness: 0.28,
+    bevelSize: 0.32,
+    bevelSegments: 2,
+    curveSegments: 24,
+  });
+  gChest = projectPocket(gChest, chestX, chestY, chestH * 0.5, embed);
   pockets.push({ name: 'Gogus_Cebi', geom: gChest });
 
   // 2. Two Lower Side Pockets (scaled cleanly with coatWidth)
@@ -1291,19 +1160,16 @@ export function buildCoatPocketsGeometry(layout, wallThickness = 2.2) {
 
   for (const side of [-1, 1]) {
     const px = side * 18.0 * wScale;
-    const gLow = buildWatertightCurvedPocketGeometry(
-      layout,
-      px,
-      lowerY,
-      lowerW,
-      lowerH,
-      3.6,
-      1.65,
-      safeEmbed,
-      2.7,
-      14,
-      18
-    );
+    const shapeLow = makePocketShape(lowerW, lowerH, 3.6);
+    let gLow = new THREE.ExtrudeGeometry(shapeLow, {
+      depth: 1.15,
+      bevelEnabled: true,
+      bevelThickness: 0.30,
+      bevelSize: 0.35,
+      bevelSegments: 2,
+      curveSegments: 24,
+    });
+    gLow = projectPocket(gLow, px, lowerY, lowerH * 0.5, embed);
     pockets.push({
       name: side < 0 ? 'Alt_Sag_Cep' : 'Alt_Sol_Cep',
       geom: gLow,
