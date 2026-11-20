@@ -164,17 +164,24 @@ export function collectColoredMeshesForPrint(rootObject) {
     const parentName = node.parent && node.parent !== cloneRoot ? node.parent.name : '';
     const rawName = node.name || 'Parca';
 
+    const isNegative =
+      parentName === 'Sirt_Gomme_Yazisi' ||
+      rawName.startsWith('Gomme_Harf_') ||
+      rawName === 'Sirt_Gomme_Yazisi';
+
     const mat = Array.isArray(node.material) ? node.material[0] : node.material;
     const hex = mat && mat.color ? mat.color.getHexString().toUpperCase() : 'CCCCCC';
     const baseColorInfo = getColorPaletteInfo(hex);
 
-    if (!rawColorsMap.has(baseColorInfo.hex)) {
+    if (!isNegative && !rawColorsMap.has(baseColorInfo.hex)) {
       rawColorsMap.set(baseColorInfo.hex, baseColorInfo);
     }
 
     // Aynı ebeveyn altındaki aynı renkli harfleri/yıldızları anlamlı tek bir parça altında topla
     let groupKey = rawName;
-    if (
+    if (isNegative) {
+      groupKey = 'Sirt_Gomme_Yazisi';
+    } else if (
       parentName === 'On_Yazi_Sponsor' ||
       parentName === 'Arka_Isim' ||
       parentName === 'Arka_Numara'
@@ -202,7 +209,8 @@ export function collectColoredMeshesForPrint(rootObject) {
       groupedEntries.set(groupKey, {
         name: groupKey,
         colorHex: baseColorInfo.hex,
-        layerPriority: getPartLayerPriority(groupKey),
+        layerPriority: isNegative ? 999 : getPartLayerPriority(groupKey),
+        isNegative: Boolean(isNegative),
         vertices: [],
         triangles: [],
       });
@@ -258,7 +266,7 @@ export function collectColoredMeshesForPrint(rootObject) {
     .filter((p) => p.triangles.length > 0)
     .map((p) => ({
       ...p,
-      colorInfo: paletteMap.get(p.colorHex),
+      colorInfo: paletteMap.get(p.colorHex) || palette[0] || { paletteIdx: 0, extruderSlot: 1 },
     }))
     .sort((a, b) => a.layerPriority - b.layerPriority);
 
@@ -334,12 +342,18 @@ export async function generateColored3MFBlob(rootObject, modelTitle = 'Forma_Kal
     const objId = idx + 2; // id=1 basematerials için ayrıldı
     partObjectIds.push({ objId, part });
 
-    const pIdx = part.colorInfo.paletteIdx;
-    const paintCode = getBambuPaintCode(part.colorInfo.extruderSlot);
+    const pIdx = part.colorInfo ? part.colorInfo.paletteIdx : 0;
+    const paintCode = part.colorInfo ? getBambuPaintCode(part.colorInfo.extruderSlot) : '4';
 
-    xmlLines.push(
-      `    <object id="${objId}" name="${part.name}" type="model" pid="1" pindex="${pIdx}">`
-    );
+    if (part.isNegative) {
+      xmlLines.push(
+        `    <object id="${objId}" name="${part.name}" type="model">`
+      );
+    } else {
+      xmlLines.push(
+        `    <object id="${objId}" name="${part.name}" type="model" pid="1" pindex="${pIdx}">`
+      );
+    }
     xmlLines.push(`      <mesh>`);
     xmlLines.push(`        <vertices>`);
 
@@ -355,9 +369,15 @@ export async function generateColored3MFBlob(rootObject, modelTitle = 'Forma_Kal
 
     const tris = part.triangles;
     for (let t = 0; t < tris.length; t += 3) {
-      xmlLines.push(
-        `          <triangle v1="${tris[t]}" v2="${tris[t + 1]}" v3="${tris[t + 2]}" pid="1" p1="${pIdx}" paint_color="${paintCode}" slic3rpe:mmu_segmentation="${paintCode}" />`
-      );
+      if (part.isNegative) {
+        xmlLines.push(
+          `          <triangle v1="${tris[t]}" v2="${tris[t + 1]}" v3="${tris[t + 2]}" />`
+        );
+      } else {
+        xmlLines.push(
+          `          <triangle v1="${tris[t]}" v2="${tris[t + 1]}" v3="${tris[t + 2]}" pid="1" p1="${pIdx}" paint_color="${paintCode}" slic3rpe:mmu_segmentation="${paintCode}" />`
+        );
+      }
     }
 
     xmlLines.push(`        </triangles>`);
@@ -393,11 +413,17 @@ export async function generateColored3MFBlob(rootObject, modelTitle = 'Forma_Kal
   settingsLines.push(`    <metadata key="name" value="${modelTitle}"/>`);
   settingsLines.push(`    <metadata key="extruder" value="1"/>`);
   for (const item of partObjectIds) {
-    const extSlot = item.part.colorInfo.extruderSlot;
-    settingsLines.push(`    <part id="${item.objId}" subtype="normal_part">`);
-    settingsLines.push(`      <metadata key="name" value="${item.part.name}"/>`);
-    settingsLines.push(`      <metadata key="extruder" value="${extSlot}"/>`);
-    settingsLines.push(`    </part>`);
+    if (item.part.isNegative) {
+      settingsLines.push(`    <part id="${item.objId}" subtype="negative_part">`);
+      settingsLines.push(`      <metadata key="name" value="${item.part.name}"/>`);
+      settingsLines.push(`    </part>`);
+    } else {
+      const extSlot = item.part.colorInfo ? item.part.colorInfo.extruderSlot : 1;
+      settingsLines.push(`    <part id="${item.objId}" subtype="normal_part">`);
+      settingsLines.push(`      <metadata key="name" value="${item.part.name}"/>`);
+      settingsLines.push(`      <metadata key="extruder" value="${extSlot}"/>`);
+      settingsLines.push(`    </part>`);
+    }
   }
   settingsLines.push(`  </object>`);
   settingsLines.push(`</config>`);

@@ -726,6 +726,14 @@ const App = () => {
       samplePaper.parent.remove(samplePaper);
     }
 
+    // Negatif oyma harfleri tek parça STL birleşiminde STL formatı boolean çıkarma desteklemediğinden
+    // dışarı taşarak çıkıntı yapmaması için tek parça katı STL'den temizlenir.
+    // Bambu Studio ve OrcaSlicer'da gömme yazı .3MF dosyası ile otomatik negatif modifier olarak oyulur.
+    const negativeTextGroup = cloneRoot.getObjectByName('Sirt_Gomme_Yazisi');
+    if (negativeTextGroup && negativeTextGroup.parent) {
+      negativeTextGroup.parent.remove(negativeTextGroup);
+    }
+
     const wrapper = new THREE.Group();
     const zUpGroup = new THREE.Group();
     cloneRoot.scale.set(1, 1, 1);
@@ -911,9 +919,13 @@ NEDEN STL DOSYALARI DİLİMLEYİCİDE TEK RENK AÇILIR?
   dosyasını açabilirsiniz.
 
 SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
-- Model üzerindeki tüm sırt yazıları dikey yüzeye 1.0mm kabartma olarak projeksiyonla yerleştirilmiştir.
+- Model üzerindeki kabartma sırt yazıları dikey yüzeye 1.0mm kabartma olarak projeksiyonla yerleştirilmiştir.
 - FDM dilimleyicilerde (Bambu Studio, Cura, PrusaSlicer) dikey duvar kabartmaları 
   100% DESTEKSİZ (SUPPORTLESS) basılabilir. Ekstra destek açmanıza gerek yoktur.
+- GÖMME / OYMA MODU (BAMBU STUDIO / ORCASLICER):
+  "00_RENKLI_TAM_MODEL_ONIZLEME_VE_BASKI.3mf" veya doğrudan indirilen ".3mf" dosyası
+  Bambu Studio ile açıldığında, sırt yazısı otomatik olarak "Negative Part" (Negatif Parça) olarak
+  işlenir ve forma sırtından içeriye doğru -0.8mm / -1.0mm oyularak basılır (Sıfır AMS atığı, %100 gömülü oyma).
 `;
       zip.file(`README_BASKI_REHBERI.txt`, guideText);
 

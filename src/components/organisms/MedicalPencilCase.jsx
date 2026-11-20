@@ -317,9 +317,12 @@ const MedicalPencilCase = ({
     if (!parsedBackLines) return [];
     const { linesData, baseH } = parsedBackLines;
     const relief = isEngraveMode
+      ? Math.max(0.6, Number(backTextDepth) || 0.8)
+      : isPlateMode
       ? Math.max(0.4, Number(backTextDepth) * 0.7 || 0.7)
       : Math.max(0.6, Number(backTextDepth) || 1.0);
     const embed = 0.35;
+    const extrudeDepth = isEngraveMode ? relief + 0.3 : relief + embed;
     const meshes = [];
 
     linesData.forEach((line, l) => {
@@ -341,7 +344,7 @@ const MedicalPencilCase = ({
         );
 
         let geom = new THREE.ExtrudeGeometry(cleanShapes, {
-          depth: relief + embed,
+          depth: extrudeDepth,
           bevelEnabled: false,
         });
 
@@ -373,8 +376,11 @@ const MedicalPencilCase = ({
             // Sits elevated on top of the 1.6mm backplate
             worldZ = surfZ + 0.4 - 1.6 + 0.15 - lz * 0.8;
           } else if (isEngraveMode) {
-            // Recessed / carved inward into the coat surface (Plakasız doğrudan forma sırtına gömme)
-            worldZ = surfZ - 0.15 + (lz * 0.75);
+            // Bambu Studio Negatif Oyma Modifier:
+            // Slicer'ın forma sırtına delik açarken kabukta sıfır-kalınlık film bırakmaması için
+            // dışarıdan 0.2mm havadan başlar ve coat et kalınlığı içine (relief kadar) penetre eder.
+            const t = extrudeDepth > 0 ? lz / extrudeDepth : 0;
+            worldZ = (surfZ - 0.2) + t * (relief + 0.2);
           } else {
             // Classic outward emboss (Doğrudan kabartma)
             worldZ = surfZ + embed - lz;
@@ -650,8 +656,8 @@ const MedicalPencilCase = ({
               receiveShadow
             >
               <meshStandardMaterial
-                color={isEngraveMode ? '#475569' : textColor}
-                roughness={0.28}
+                color={isEngraveMode ? '#1E293B' : textColor}
+                roughness={0.35}
                 metalness={0.05}
               />
             </mesh>
