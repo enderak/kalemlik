@@ -495,18 +495,65 @@ export function buildCoatBodyGeometry(
 /**
  * Builds the Separate Printable Nameplate (Sırt İsimlik Plakası) for supportless / zero-waste printing.
  */
+export function mergeGeometries(geoms) {
+  const valid = (geoms || []).filter(Boolean);
+  if (valid.length === 0) return null;
+  if (valid.length === 1) return valid[0];
+
+  let totalVerts = 0;
+  const lists = valid.map((g) => {
+    const p = g.getAttribute('position');
+    const n = g.getAttribute('normal');
+    const u = g.getAttribute('uv');
+    const idx = g.index;
+    totalVerts += p.count;
+    return { pos: p, norm: n, uv: u, idx, count: p.count };
+  });
+
+  const positions = new Float32Array(totalVerts * 3);
+  const normals = new Float32Array(totalVerts * 3);
+  const uvs = new Float32Array(totalVerts * 2);
+  const indices = [];
+  let offset = 0;
+  let hasUV = false;
+
+  for (const l of lists) {
+    positions.set(l.pos.array, offset * 3);
+    if (l.norm) normals.set(l.norm.array, offset * 3);
+    if (l.uv) {
+      uvs.set(l.uv.array, offset * 2);
+      hasUV = true;
+    }
+    if (l.idx) {
+      for (let i = 0; i < l.idx.count; i++) indices.push(l.idx.getX(i) + offset);
+    } else {
+      for (let i = 0; i < l.count; i++) indices.push(offset + i);
+    }
+    offset += l.count;
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geom.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  if (hasUV) geom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geom.setIndex(indices);
+  geom.computeVertexNormals();
+  return geom;
+}
+
 export function buildCoatBackPlateGeometry(
   layout,
   plateW,
   plateH,
   plateThickness = 1.6,
   elevation = 64,
-  wallThickness = 2.2
+  wallThickness = 2.2,
+  holes = []
 ) {
   const shape = new THREE.Shape();
   const hw = plateW * 0.5;
   const hh = plateH * 0.5;
-  const r = 3.0;
+  const r = 3.5;
 
   shape.moveTo(-hw + r, -hh);
   shape.lineTo(hw - r, -hh);
@@ -517,13 +564,20 @@ export function buildCoatBackPlateGeometry(
   shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
   shape.lineTo(-hw, -hh + r);
   shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+  shape.closePath();
+
+  const hasHoles = Boolean(holes && holes.length > 0);
+  if (hasHoles) {
+    shape.holes.push(...holes);
+  }
 
   const extrudeSettings = {
     depth: plateThickness,
-    bevelEnabled: true,
+    bevelEnabled: !hasHoles,
     bevelThickness: 0.35,
     bevelSize: 0.35,
     bevelSegments: 2,
+    curveSegments: 32,
   };
 
   const geom = new THREE.ExtrudeGeometry(shape, extrudeSettings);
@@ -542,6 +596,90 @@ export function buildCoatBackPlateGeometry(
     const worldY = mappedY + ly;
     const surfZ = getExactCoatSurfaceZ(worldX, worldY, false, layout);
     const worldZ = surfZ + embed - lz;
+
+    pos.setX(i, worldX);
+    pos.setY(i, worldY);
+    pos.setZ(i, worldZ);
+  }
+
+  pos.needsUpdate = true;
+  geom.computeVertexNormals();
+  return geom;
+}
+
+export function buildCoatBackIslandsGeometry(
+  layout,
+  islandShapes,
+  plateThickness = 1.6,
+  elevation = 64,
+  wallThickness = 2.2
+) {
+  if (!islandShapes || islandShapes.length === 0) return null;
+
+  const extrudeSettings = {
+    depth: plateThickness,
+    bevelEnabled: false,
+    curveSegments: 24,
+  };
+
+  const geom = new THREE.ExtrudeGeometry(islandShapes, extrudeSettings);
+  geom.computeBoundingBox();
+
+  const mappedY = layout.coatBottomY + (elevation / 100) * layout.coatSpan;
+  const pos = geom.attributes.position;
+  const embed = Math.min(0.45, Math.max(0.8, Number(wallThickness) || 2.2) * 0.35);
+
+  for (let i = 0; i < pos.count; i++) {
+    const lx = pos.getX(i);
+    const ly = pos.getY(i);
+    const lz = pos.getZ(i);
+
+    const worldX = lx;
+    const worldY = mappedY + ly;
+    const surfZ = getExactCoatSurfaceZ(worldX, worldY, false, layout);
+    const worldZ = surfZ + embed - lz;
+
+    pos.setX(i, worldX);
+    pos.setY(i, worldY);
+    pos.setZ(i, worldZ);
+  }
+
+  pos.needsUpdate = true;
+  geom.computeVertexNormals();
+  return geom;
+}
+
+export function buildCoatBackInlaysGeometry(
+  layout,
+  inlayShapes,
+  elevation = 64,
+  wallThickness = 2.2,
+  inlayDepth = 0.3
+) {
+  if (!inlayShapes || inlayShapes.length === 0) return null;
+
+  const extrudeSettings = {
+    depth: inlayDepth,
+    bevelEnabled: false,
+    curveSegments: 24,
+  };
+
+  const geom = new THREE.ExtrudeGeometry(inlayShapes, extrudeSettings);
+  geom.computeBoundingBox();
+
+  const mappedY = layout.coatBottomY + (elevation / 100) * layout.coatSpan;
+  const pos = geom.attributes.position;
+  const embed = Math.min(0.45, Math.max(0.8, Number(wallThickness) || 2.2) * 0.35);
+
+  for (let i = 0; i < pos.count; i++) {
+    const lx = pos.getX(i);
+    const ly = pos.getY(i);
+    const lz = pos.getZ(i);
+
+    const worldX = lx;
+    const worldY = mappedY + ly;
+    const surfZ = getExactCoatSurfaceZ(worldX, worldY, false, layout);
+    const worldZ = surfZ + embed * 0.5 - lz;
 
     pos.setX(i, worldX);
     pos.setY(i, worldY);

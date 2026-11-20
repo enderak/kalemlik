@@ -1493,11 +1493,15 @@ SIRTTTAKİ HASTANE / KURUM YAZISI DESTEK DURUMU:
                 />
 
                 <Slider
-                  label="Kabartma Derinliği (mm)"
+                  label={
+                    medicalBackTextStyle === 'engrave'
+                      ? 'Gömme / Oyma Derinliği (mm)'
+                      : 'Kabartma Derinliği (mm)'
+                  }
                   value={medicalBackTextDepth}
                   onChange={setMedicalBackTextDepth}
                   min={0.6}
-                  max={1.8}
+                  max={2.0}
                   step={0.1}
                 />
 
