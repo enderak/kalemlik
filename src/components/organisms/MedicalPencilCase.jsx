@@ -9,9 +9,6 @@ import {
   getExactCoatSurfaceZ,
   buildCoatBodyGeometry,
   buildCoatBackPlateGeometry,
-  buildCoatBackIslandsGeometry,
-  buildCoatBackInlaysGeometry,
-  mergeGeometries,
   buildNotchedLapelGeometry,
   buildInnerShirtGeometry,
   getChestPocketLayout,
@@ -307,7 +304,7 @@ const MedicalPencilCase = ({
     return { linesData, maxLineW, totalLinesH, baseH };
   }, [backText, font, backTextHeight, mappedBackTextY, layout]);
 
-  // Ayrı İsimlik Plakası (Sıfır AMS atığı için ayrı basılabilen plaka)
+  // Ayrı İsimlik Plakası (Yalnızca Plaka Üstü modunda aktif - Gömme ve Kabartma modlarında plaka yoktur)
   const backPlateGeom = useMemo(() => {
     if (!isPlateMode || !parsedBackLines) return null;
     const plateW = Math.max(44, Math.min(layout.coatWidth * 0.74, parsedBackLines.maxLineW + 10));
@@ -315,126 +312,13 @@ const MedicalPencilCase = ({
     return buildCoatBackPlateGeometry(layout, plateW, plateH, 1.6, backTextElevation, wallThickness);
   }, [isPlateMode, parsedBackLines, layout, backTextElevation, wallThickness]);
 
-  // Gömme / Oyma Modu için Harf Şekilleri (Delikler, Adalar ve İç Taban)
-  const engravedData = useMemo(() => {
-    if (!isEngraveMode || !parsedBackLines || !font) return null;
-    const { linesData, totalLinesH, baseH } = parsedBackLines;
-    const lineSpacing = baseH * 1.35;
-
-    const holes = [];
-    const islands = [];
-    const inlays = [];
-
-    linesData.forEach((line, l) => {
-      const lineLocalY = totalLinesH * 0.5 - l * lineSpacing;
-      let curX = -line.lineW * 0.5;
-
-      for (let i = 0; i < line.charInfos.length; i++) {
-        const info = line.charInfos[i];
-        const w = info.width * line.fitScale;
-        const midX = curX + w * 0.5;
-        curX += w;
-        if (info.isSpace) continue;
-
-        for (const sh of info.shapes) {
-          const sg = new THREE.ShapeGeometry(sh);
-          sg.computeBoundingBox();
-          const box = sg.boundingBox;
-          const cx = (box.min.x + box.max.x) * 0.5;
-          const cy = (box.min.y + box.max.y) * 0.5;
-
-          // Harf dış konturu (Plakadan oyulacak delik: Earcut gereği CW / negatif alan olmalı)
-          const pts = sh.getPoints();
-          const mappedPts = pts.map((pt) => {
-            const lx = (pt.x - cx) * line.fitScale;
-            const ly = (pt.y - cy) * line.fitScale;
-            return new THREE.Vector2(-(midX + lx), lineLocalY + ly);
-          });
-
-          // Delik için alan negatif (CW) olmalıdır
-          const holeArea = THREE.ShapeUtils.area(mappedPts);
-          const finalHolePts = holeArea > 0 ? mappedPts.slice().reverse() : mappedPts.slice();
-          const holePath = new THREE.Path(finalHolePts);
-          holes.push(holePath);
-
-          // Taban dolgusu için alan pozitif (CCW) olmalıdır
-          const finalInlayPts = holeArea < 0 ? mappedPts.slice().reverse() : mappedPts.slice();
-          const inlayShape = new THREE.Shape(finalInlayPts);
-
-          // O, B, P, R gibi harflerin iç adaları (Plaka yüzeyinde kalan kısımlar)
-          if (sh.holes && sh.holes.length > 0) {
-            for (const ih of sh.holes) {
-              const ipts = ih.getPoints();
-              const mappedIslandPts = ipts.map((pt) => {
-                const lx = (pt.x - cx) * line.fitScale;
-                const ly = (pt.y - cy) * line.fitScale;
-                return new THREE.Vector2(-(midX + lx), lineLocalY + ly);
-              });
-
-              // Ada katı poligon olduğu için alanı pozitif (CCW) olmalıdır
-              const islandArea = THREE.ShapeUtils.area(mappedIslandPts);
-              const finalIslandPts = islandArea < 0 ? mappedIslandPts.slice().reverse() : mappedIslandPts.slice();
-              const islandShape = new THREE.Shape(finalIslandPts);
-              islands.push(islandShape);
-
-              // İnlay içindeki delik ise CW (negatif) olmalıdır
-              const finalInlayHolePts = islandArea > 0 ? mappedIslandPts.slice().reverse() : mappedIslandPts.slice();
-              const inlayHole = new THREE.Path(finalInlayHolePts);
-              inlayShape.holes.push(inlayHole);
-            }
-          }
-          inlays.push(inlayShape);
-        }
-      }
-    });
-
-    return { holes, islands, inlays };
-  }, [isEngraveMode, parsedBackLines, font]);
-
-  // Gömme / Oyma Geometrileri (Oyuk Plaka + İç Yuva Zemin Kontrastı)
-  const engravedGeoms = useMemo(() => {
-    if (!isEngraveMode || !engravedData || !parsedBackLines) return null;
-    const { holes, islands, inlays } = engravedData;
-    const plateW = Math.max(44, Math.min(layout.coatWidth * 0.76, parsedBackLines.maxLineW + 12));
-    const plateH = Math.max(22, parsedBackLines.totalLinesH + 13);
-    const engraveDepth = Math.max(0.8, Number(backTextDepth) || 1.2);
-
-    const plateWithHoles = buildCoatBackPlateGeometry(
-      layout,
-      plateW,
-      plateH,
-      engraveDepth,
-      backTextElevation,
-      wallThickness,
-      holes
-    );
-    const islandsGeom = buildCoatBackIslandsGeometry(
-      layout,
-      islands,
-      engraveDepth,
-      backTextElevation,
-      wallThickness
-    );
-    const mergedPlate = islandsGeom
-      ? mergeGeometries([plateWithHoles, islandsGeom])
-      : plateWithHoles;
-
-    const inlayGeom = buildCoatBackInlaysGeometry(
-      layout,
-      inlays,
-      backTextElevation,
-      wallThickness,
-      0.3
-    );
-
-    return { plateGeom: mergedPlate, inlayGeom };
-  }, [isEngraveMode, engravedData, parsedBackLines, layout, backTextDepth, backTextElevation, wallThickness]);
-
-  // Yazı Harfleri Mesh'leri (Plaka Üstü veya Doğrudan Kabartma)
+  // Yazı Harfleri Mesh'leri (Gömme / Oyma, Doğrudan Kabartma veya Plaka Üstü)
   const backTextMeshes = useMemo(() => {
-    if (isEngraveMode || !parsedBackLines) return [];
+    if (!parsedBackLines) return [];
     const { linesData, baseH } = parsedBackLines;
-    const relief = Math.max(0.6, Number(backTextDepth) || 1.0);
+    const relief = isEngraveMode
+      ? Math.max(0.4, Number(backTextDepth) * 0.7 || 0.7)
+      : Math.max(0.6, Number(backTextDepth) || 1.0);
     const embed = 0.35;
     const meshes = [];
 
@@ -455,6 +339,7 @@ const MedicalPencilCase = ({
           24,
           0.08
         );
+
         let geom = new THREE.ExtrudeGeometry(cleanShapes, {
           depth: relief + embed,
           bevelEnabled: false,
@@ -487,8 +372,11 @@ const MedicalPencilCase = ({
           if (isPlateMode) {
             // Sits elevated on top of the 1.6mm backplate
             worldZ = surfZ + 0.4 - 1.6 + 0.15 - lz * 0.8;
+          } else if (isEngraveMode) {
+            // Recessed / carved inward into the coat surface (Plakasız doğrudan forma sırtına gömme)
+            worldZ = surfZ - 0.15 + (lz * 0.75);
           } else {
-            // Classic outward emboss
+            // Classic outward emboss (Doğrudan kabartma)
             worldZ = surfZ + embed - lz;
           }
 
@@ -725,7 +613,7 @@ const MedicalPencilCase = ({
         </group>
       )}
 
-      {/* ── Sırt Hastane Yazısı (Plaka / Gömme / Kabartma) ── */}
+      {/* ── Sırt Hastane Yazısı (Yalnızca Plaka Üstü Modunda Plaka Render Edilir) ── */}
       {isPlateMode && backPlateGeom && (
         <mesh name="Sirt_Plakasi" geometry={backPlateGeom} castShadow receiveShadow>
           <meshStandardMaterial
@@ -736,52 +624,33 @@ const MedicalPencilCase = ({
         </mesh>
       )}
 
-      {/* Gerçek Fiziksel Gömme / Oyma Modu (Oyuk Plaka + İç Zemin Kontrastı) */}
-      {isEngraveMode && engravedGeoms && (
-        <group name="Sirt_Gomme_Yazisi">
-          <mesh
-            name="Sirt_Gomme_Plakasi"
-            geometry={engravedGeoms.plateGeom}
-            castShadow
-            receiveShadow
-          >
-            <meshStandardMaterial
-              color={coatColor}
-              roughness={0.38}
-              metalness={0.04}
-            />
-          </mesh>
-          {engravedGeoms.inlayGeom && (
-            <mesh
-              name="Sirt_Gomme_Harf_Tabani"
-              geometry={engravedGeoms.inlayGeom}
-              castShadow
-              receiveShadow
-            >
-              <meshStandardMaterial
-                color={textColor || '#1E293B'}
-                roughness={0.32}
-                metalness={0.05}
-              />
-            </mesh>
-          )}
-        </group>
-      )}
-
-      {!isEngraveMode && backTextMeshes.length > 0 && (
+      {/* ── Sırt Yazısı (Plaka Üstü, Gömme / Oyma veya Doğrudan Kabartma) ── */}
+      {backTextMeshes.length > 0 && (
         <group
-          name={isPlateMode ? 'Sirt_Plaka_Yazisi' : 'Arka_Hastane_Yazisi'}
+          name={
+            isPlateMode
+              ? 'Sirt_Plaka_Yazisi'
+              : isEngraveMode
+              ? 'Sirt_Gomme_Yazisi'
+              : 'Arka_Hastane_Yazisi'
+          }
         >
           {backTextMeshes.map((item, idx) => (
             <mesh
               key={idx}
-              name={isPlateMode ? `Plaka_Harf_${idx + 1}` : `Arka_Yazi_Harf_${idx + 1}`}
+              name={
+                isPlateMode
+                  ? `Plaka_Harf_${idx + 1}`
+                  : isEngraveMode
+                  ? `Gomme_Harf_${idx + 1}`
+                  : `Arka_Yazi_Harf_${idx + 1}`
+              }
               geometry={item.geom}
               castShadow
               receiveShadow
             >
               <meshStandardMaterial
-                color={textColor}
+                color={isEngraveMode ? '#475569' : textColor}
                 roughness={0.28}
                 metalness={0.05}
               />
